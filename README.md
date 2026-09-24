@@ -5,9 +5,14 @@ startup, hands it to the packages that need it, and calls `Send` from any
 goroutine. Delivery happens on a worker goroutine, so callers never wait on
 I/O; a full queue drops the alert rather than blocking.
 
-Version 0.0.x writes alerts to a log file. Later versions add delivery
-channels (mail, push services), each configured by its own `ALERTER_*`
-environment variables.
+## Status: stub
+
+This module is currently a stub: it only writes alerts to a file (or to
+stdout). The queue, de-duplication and the `Alerter` interface are final, so
+applications can integrate now, but nothing is delivered anywhere yet. Various
+communication methods (mail, push services and others) will be added later,
+each configured by its own `ALERTER_*` environment variables, with no change
+to the calling application.
 
 ## Use
 
