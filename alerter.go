@@ -10,10 +10,12 @@
 // goroutine. Delivery happens on a worker goroutine; callers never wait on
 // I/O, and a full queue drops the alert rather than blocking.
 //
-// Version 0.0.x writes alerts to a log: the file named by WithLogFile, else
-// the file named by the ALERTER_LOG environment variable, else stdout. Later
-// versions add delivery channels, each configured by its own ALERTER_*
-// environment variables.
+// Every alert is written to a log: the file named by WithLogFile, else the
+// file named by the ALERTER_LOG environment variable, else stdout. It is also
+// delivered to each channel whose ALERTER_* environment variables are set:
+// Pushover, SMS (Telnyx) and mail (SMTP). The calling application does not
+// choose channels; the environment does. New first loads ~/.alerter, when it
+// exists, into the environment (see EnvFileName).
 package alerter
 
 import (
@@ -89,14 +91,15 @@ type Alerter interface {
 
 // Stats counts what happened to the alerts handed to an alerter.
 type Stats struct {
-	// Sent alerts were delivered to the log.
+	// Sent alerts were delivered to the log and to every configured channel.
 	Sent uint64
 	// Dropped alerts were discarded because the queue was full or the alerter
 	// was already closed.
 	Dropped uint64
 	// Suppressed alerts were repeats held back inside the suppress window.
 	Suppressed uint64
-	// Failed alerts reached delivery but the log write returned an error.
+	// Failed alerts reached delivery but the log write or at least one
+	// channel returned an error. Each channel failure is recorded in the log.
 	Failed uint64
 }
 
@@ -184,7 +187,8 @@ type Dispatcher struct {
 	mu     sync.RWMutex // guards closed and the channel close
 	closed bool
 
-	log *logWriter
+	log   *logWriter
+	sinks []sink
 
 	// last is the delivery goroutine's private view: when each key was last
 	// delivered, and how many repeats were suppressed since.
@@ -199,9 +203,15 @@ type suppressed struct {
 }
 
 // New builds an Alerter from the options and starts its delivery goroutine.
-// The log destination is decided here: WithLogFile, else ALERTER_LOG, else
-// stdout. A named file that cannot be opened is an error.
+// It first loads ~/.alerter into the environment, then decides the log
+// destination (WithLogFile, else ALERTER_LOG, else stdout) and the delivery
+// channels (each channel whose ALERTER_* variables are set). An unreadable
+// ~/.alerter, a named log file that cannot be opened, or a channel that is
+// incompletely or wrongly configured is an error.
 func New(opts ...Option) (*Dispatcher, error) {
+	if err := loadEnvFile(); err != nil {
+		return nil, err
+	}
 	o := options{
 		queueSize:      DefaultQueueSize,
 		suppressWindow: DefaultSuppressWindow,
@@ -216,6 +226,10 @@ func New(opts ...Option) (*Dispatcher, error) {
 	if path == "" {
 		path = strings.TrimSpace(os.Getenv(EnvLogFile))
 	}
+	sinks, err := sinksFromEnv()
+	if err != nil {
+		return nil, err
+	}
 	lw, err := openLog(path)
 	if err != nil {
 		return nil, err
@@ -228,6 +242,7 @@ func New(opts ...Option) (*Dispatcher, error) {
 		queue:          make(chan Alert, o.queueSize),
 		done:           make(chan struct{}),
 		log:            lw,
+		sinks:          sinks,
 		last:           map[string]*suppressed{},
 	}
 	go d.run()
@@ -298,19 +313,45 @@ func (d *Dispatcher) Stats() Stats {
 	}
 }
 
-// run is the delivery goroutine: suppression, then the log.
+// run is the delivery goroutine: suppression, then the log and every
+// channel in turn.
 func (d *Dispatcher) run() {
 	defer close(d.done)
 	for a := range d.queue {
 		if !d.admit(&a) {
 			continue
 		}
-		if err := d.log.write(a); err != nil {
+		if d.deliver(a) {
+			d.sent.Add(1)
+		} else {
 			d.failed.Add(1)
-			continue
 		}
-		d.sent.Add(1)
 	}
+}
+
+// deliver writes a to the log and sends it to every channel at once, each
+// bounded by sinkTimeout, so a dead channel delays the others by at most one
+// timeout. A channel failure is recorded in the log. It reports whether every
+// delivery succeeded.
+func (d *Dispatcher) deliver(a Alert) bool {
+	ok := d.log.write(a) == nil
+	errs := make([]error, len(d.sinks))
+	var wg sync.WaitGroup
+	for i, s := range d.sinks {
+		wg.Go(func() {
+			ctx, cancel := context.WithTimeout(context.Background(), sinkTimeout)
+			defer cancel()
+			errs[i] = s.send(ctx, a)
+		})
+	}
+	wg.Wait()
+	for i, err := range errs {
+		if err != nil {
+			ok = false
+			_ = d.log.writeFailure(d.now(), d.sinks[i].name(), a, err)
+		}
+	}
+	return ok
 }
 
 // admit applies repeat suppression. It reports whether a should be delivered,

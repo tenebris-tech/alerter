@@ -72,10 +72,33 @@ func format(a Alert) string {
 	return b.String()
 }
 
+// formatFailure renders a channel delivery failure: a header line naming the
+// channel and the alert, then the error indented.
+func formatFailure(t time.Time, channel string, a Alert, err error) string {
+	var b strings.Builder
+	b.WriteString(t.Format(time.RFC3339) + " ERROR alerter: " + channel + " delivery failed")
+	if a.EventID != "" {
+		b.WriteString(" [" + a.EventID + "]")
+	}
+	b.WriteString(": " + a.Title + "\n")
+	for _, line := range strings.Split(strings.TrimRight(err.Error(), "\n"), "\n") {
+		b.WriteString("    " + line + "\n")
+	}
+	return b.String()
+}
+
+func (l *logWriter) writeFailure(t time.Time, channel string, a Alert, err error) error {
+	return l.writeString(formatFailure(t, channel, a, err))
+}
+
 func (l *logWriter) write(a Alert) error {
+	return l.writeString(format(a))
+}
+
+func (l *logWriter) writeString(s string) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if _, err := io.WriteString(l.w, format(a)); err != nil {
+	if _, err := io.WriteString(l.w, s); err != nil {
 		return fmt.Errorf("alerter: write log: %w", err)
 	}
 	return nil
