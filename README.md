@@ -105,6 +105,10 @@ coverage floor, and a summary. `make` runs it and then builds. The suite runs
 with an empty `HOME` and no `ALERTER_*` variables, against fake services, so
 it never sends a real alert.
 
+`go run ./cmd/alert` sends two test alerts, one high and one low priority,
+through whatever `~/.alerter` and the environment configure, prints the
+counts, and exits non-zero unless both were delivered.
+
 `make test-live` sends one real alert through every channel configured in
 `~/.alerter` (variables in the environment override the file) and fails
 unless each accepted it.
