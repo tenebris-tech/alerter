@@ -39,8 +39,10 @@ func TestEveryLevelThroughEveryChannel(t *testing.T) {
 	// Channels run in parallel per alert, but alerts are delivered in order.
 	for i := range 3 {
 		form, _ := url.ParseQuery(f.push.bodies[i])
-		if form.Get("priority") != pushPrio[i] || !strings.Contains(form.Get("message"), names[i]+" alert from Claw@empire") {
-			t.Errorf("pushover %d: priority %q message %q", i, form.Get("priority"), form.Get("message"))
+		msg := form.Get("message")
+		if form.Get("priority") != pushPrio[i] || !strings.Contains(msg, "\n"+names[i]+" alert\n") ||
+			strings.Contains(msg, "Claw@empire") || form.Get("title") != "Level "+[]string{"zero", "one", "two"}[i]+" (Claw@empire)" {
+			t.Errorf("pushover %d: priority %q title %q message %q", i, form.Get("priority"), form.Get("title"), msg)
 		}
 		if !strings.Contains(f.sms.bodies[i], names[i]+" alert from Claw@empire") {
 			t.Errorf("sms %d: %s", i, f.sms.bodies[i])

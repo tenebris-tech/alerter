@@ -73,10 +73,12 @@ func main() {
 // testAlerts is how many alerts send raises.
 const testAlerts = 3
 
-// send raises one test alert at each level. Their titles differ, so repeat
-// suppression never holds one back.
+// send raises one test alert at each level. They share a title: repeat
+// suppression keys on the level too, so none is held back, and the message
+// states the level itself.
 func send(al alerter.Alerter) {
-	al.Normal("Normal test alert", "alert sent this to test Normal delivery; no action needed")
-	al.Priority("Priority test alert", "alert sent this to test Priority delivery; no action needed")
-	al.Emergency("Emergency test alert", "alert sent this to test Emergency delivery; no action needed")
+	const title, description = "Test alert", "alert sent this to test delivery; no action needed"
+	al.Normal(title, description)
+	al.Priority(title, description)
+	al.Emergency(title, description)
 }

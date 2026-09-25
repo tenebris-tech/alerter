@@ -135,6 +135,8 @@ func source(a Alert) string {
 // priorityLine says how urgent the alert is and where it came from:
 // "Normal alert from ClawEh@empire", "Priority alert from …" or "Emergency
 // alert from …". The words avoid high and low, which read like measurements.
+// It is for text with no subject line (SMS); body leaves the source out
+// because the subject already carries it.
 func priorityLine(a Alert) string {
 	s := priorityName(a.Priority) + " alert"
 	if src := source(a); src != "" {
@@ -155,14 +157,15 @@ func subject(a Alert) string {
 	return strings.Join(strings.Fields(s), " ")
 }
 
-// body is the message text for channels that carry more than a line: the
-// description first, then the priority, source and particulars.
+// body is the message text for channels that carry more than a line, sent
+// under subject: the description first, then the level ("Priority alert")
+// and particulars. The source is in the subject, so it is not repeated.
 func body(a Alert) string {
 	var b strings.Builder
 	if a.Description != "" {
 		b.WriteString(a.Description + "\n\n")
 	}
-	b.WriteString(priorityLine(a) + "\n")
+	b.WriteString(priorityName(a.Priority) + " alert\n")
 	if a.EventID != "" {
 		fmt.Fprintf(&b, "Event: %s\n", a.EventID)
 	}

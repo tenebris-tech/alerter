@@ -34,7 +34,6 @@ func TestSendRaisesOnePerLevel(t *testing.T) {
 	if len(r.alerts) != testAlerts || testAlerts != 3 {
 		t.Fatalf("alerts = %d (testAlerts %d), want 3", len(r.alerts), testAlerts)
 	}
-	titles := map[string]bool{}
 	for i, want := range []int{alerter.Normal, alerter.Priority, alerter.Emergency} {
 		a := r.alerts[i]
 		if a.Priority != want {
@@ -43,9 +42,8 @@ func TestSendRaisesOnePerLevel(t *testing.T) {
 		if a.Details != "" {
 			t.Errorf("details = %q; every service shows when a message arrived", a.Details)
 		}
-		titles[a.Title] = true
-	}
-	if len(titles) != 3 {
-		t.Error("titles must differ or repeat suppression holds one back")
+		if a.Title != "Test alert" || a.Description != "alert sent this to test delivery; no action needed" {
+			t.Errorf("alert %d: %q / %q", i, a.Title, a.Description)
+		}
 	}
 }

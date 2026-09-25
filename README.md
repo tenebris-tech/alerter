@@ -94,9 +94,11 @@ empty.
 
 Messages lead with what happened. The subject (the mail subject, the
 Pushover title) is the title and source, `Provider authentication failed
-(ClawEh@empire)`; the text starts with the description, followed by
-`Priority alert from ClawEh@empire` or `Normal alert from ClawEh@empire`,
-the event id, time, repeat count and details.
+(ClawEh@empire)`; the text starts with the description, followed by the
+level (`Normal alert`, `Priority alert` or `Emergency alert`), the event id,
+time, repeat count and details. The source is stated once, in the subject.
+An SMS has no subject, so it reads `Title: description` and then, for
+example, `Priority alert from ClawEh@empire`.
 
 Every channel receives every alert that passes repeat suppression. The
 channels are sent to in parallel, each bounded by a 30-second timeout, so a

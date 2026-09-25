@@ -202,7 +202,7 @@ func TestSubject(t *testing.T) {
 
 func TestBody(t *testing.T) {
 	want := "claude-cli returned 401\n\n" +
-		"Priority alert from ClawEh@empire\nEvent: claude-cli\n" +
+		"Priority alert\nEvent: claude-cli\n" +
 		"Time: 2026-09-24T10:00:00-04:00\nRepeats: 3 suppressed since the last one\n\n" +
 		"run `claude login`\non the host\n"
 	if got := body(sample); got != want {
@@ -310,6 +310,27 @@ func TestTextNeverSaysHighOrLow(t *testing.T) {
 		}
 		if !strings.Contains(smsText(a), "\n"+priorityName(p)+" alert from A") {
 			t.Errorf("sms lacks the level: %q", smsText(a))
+		}
+	}
+}
+
+// TestSourceStatedOnce: the subject carries the source, so the body sent
+// under it (mail, Pushover) does not repeat it; SMS, with no subject, states
+// it on its level line.
+func TestSourceStatedOnce(t *testing.T) {
+	for _, p := range []int{Normal, Priority, Emergency} {
+		a := Alert{Priority: p, Title: "Disk full", Description: "backup stopped", App: "ClawEh", Instance: "empire", Time: sample.Time}
+		if n := strings.Count(subject(a)+"\n"+body(a), "ClawEh@empire"); n != 1 {
+			t.Errorf("level %d: source appears %d times in subject and body:\n%s\n%s", p, n, subject(a), body(a))
+		}
+		if n := strings.Count(pushoverForm(t, a), "ClawEh@empire"); n != 1 {
+			t.Errorf("level %d: source appears %d times in the Pushover title and message", p, n)
+		}
+		if n := strings.Count(smsText(a), "ClawEh@empire"); n != 1 {
+			t.Errorf("level %d: source appears %d times in the SMS: %q", p, n, smsText(a))
+		}
+		if !strings.Contains(body(a), "\n"+priorityName(p)+" alert\n") {
+			t.Errorf("level %d: body lacks its level line: %q", p, body(a))
 		}
 	}
 }
