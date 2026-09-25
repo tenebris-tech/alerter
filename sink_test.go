@@ -177,7 +177,7 @@ func TestAllChannelErrorsReported(t *testing.T) {
 }
 
 var sample = Alert{
-	Priority: Priority, Title: "Provider authentication failed", Description: "claude-cli returned 401",
+	Priority: Urgent, Title: "Provider authentication failed", Description: "claude-cli returned 401",
 	Details: "run `claude login`\non the host\n", EventID: "claude-cli",
 	Time: time.Date(2026, 9, 24, 10, 0, 0, 0, time.FixedZone("EDT", -4*3600)),
 	App:  "ClawEh", Instance: "empire", Repeats: 3,
@@ -191,7 +191,7 @@ func TestSubject(t *testing.T) {
 		"x (ClawEh)":      {Title: "x", App: "ClawEh"},
 		"x (@empire)":     {Title: "x", Instance: "empire"},
 		"x":               {Title: "x"},
-		"line1 line2 (a)": {Priority: Priority, App: "a", Title: "line1\r\nline2 "},
+		"line1 line2 (a)": {Priority: Urgent, App: "a", Title: "line1\r\nline2 "},
 	}
 	for want, a := range cases {
 		if got := subject(a); got != strings.TrimSpace(want) {
@@ -202,7 +202,7 @@ func TestSubject(t *testing.T) {
 
 func TestBody(t *testing.T) {
 	want := "claude-cli returned 401\n\n" +
-		"Priority alert\nEvent: claude-cli\n" +
+		"Urgent alert\nEvent: claude-cli\n" +
 		"Time: 2026-09-24T10:00:00-04:00\nRepeats: 3 suppressed since the last one\n\n" +
 		"run `claude login`\non the host\n"
 	if got := body(sample); got != want {
@@ -215,7 +215,7 @@ func TestBody(t *testing.T) {
 }
 
 func TestSMSText(t *testing.T) {
-	want := "Provider authentication failed: claude-cli returned 401\nPriority alert from ClawEh@empire (3 repeat(s) suppressed)"
+	want := "Provider authentication failed: claude-cli returned 401\nUrgent alert from ClawEh@empire (3 repeat(s) suppressed)"
 	if got := smsText(sample); got != want {
 		t.Errorf("smsText = %q", got)
 	}
@@ -251,7 +251,7 @@ func TestPriorityLineLevels(t *testing.T) {
 		want string
 	}{
 		{Alert{Priority: Normal, App: "A", Instance: "i"}, "Normal alert from A@i"},
-		{Alert{Priority: Priority, App: "A"}, "Priority alert from A"},
+		{Alert{Priority: Urgent, App: "A"}, "Urgent alert from A"},
 		{Alert{Priority: Emergency}, "Emergency alert"},
 		{Alert{Priority: 5, Instance: "i"}, "Normal alert from @i"},
 	} {
@@ -290,7 +290,7 @@ func TestHighLowPattern(t *testing.T) {
 }
 
 func TestTextNeverSaysHighOrLow(t *testing.T) {
-	for _, p := range []int{Normal, Priority, Emergency} {
+	for _, p := range []int{Normal, Urgent, Emergency} {
 		a := Alert{Priority: p, Title: "Disk full", Description: "backup stopped", App: "A", Time: sample.Time}
 		mail := string(newSMTPSink("h", 25, "", "").message(a))
 		_, mailBody, _ := strings.Cut(mail, "\r\n\r\n")
@@ -318,7 +318,7 @@ func TestTextNeverSaysHighOrLow(t *testing.T) {
 // under it (mail, Pushover) does not repeat it; SMS, with no subject, states
 // it on its level line.
 func TestSourceStatedOnce(t *testing.T) {
-	for _, p := range []int{Normal, Priority, Emergency} {
+	for _, p := range []int{Normal, Urgent, Emergency} {
 		a := Alert{Priority: p, Title: "Disk full", Description: "backup stopped", App: "ClawEh", Instance: "empire", Time: sample.Time}
 		if n := strings.Count(subject(a)+"\n"+body(a), "ClawEh@empire"); n != 1 {
 			t.Errorf("level %d: source appears %d times in subject and body:\n%s\n%s", p, n, subject(a), body(a))

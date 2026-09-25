@@ -15,8 +15,8 @@ import (
 // one place that decides the payload's shape; change it here.
 func webhookPayload(a Alert) string {
 	p := struct {
-		Priority     int    `json:"priority"`      // 0 normal, 1 priority, 2 emergency
-		PriorityName string `json:"priority_name"` // "normal", "priority" or "emergency"
+		Priority     int    `json:"priority"`      // 0 normal, 1 urgent, 2 emergency
+		PriorityName string `json:"priority_name"` // "normal", "urgent" or "emergency"
 		Title        string `json:"title"`
 		Description  string `json:"description"`
 		Details      string `json:"details,omitempty"`

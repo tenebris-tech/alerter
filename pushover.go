@@ -25,7 +25,7 @@ const (
 	pushoverMessageMax = 1024
 )
 
-// pushoverDefaults are the Pushover priorities for Normal, Priority and
+// pushoverDefaults are the Pushover priorities for Normal, Urgent and
 // Emergency alerts when the environment does not set them: 1 bypasses the
 // recipient's quiet hours, 2 also repeats until acknowledged.
 var pushoverDefaults = [3]int{0, 1, 2}
@@ -48,7 +48,7 @@ type pushoverSink struct {
 }
 
 func pushoverFromEnv() (sink, error) {
-	if !anySet(EnvPushoverToken, EnvPushoverDest, EnvPushoverNormal, EnvPushoverPriority, EnvPushoverEmergency) {
+	if !anySet(EnvPushoverToken, EnvPushoverDest, EnvPushoverNormal, EnvPushoverUrgent, EnvPushoverEmergency) {
 		return nil, nil
 	}
 	if err := require("pushover", EnvPushoverToken, EnvPushoverDest); err != nil {
@@ -58,7 +58,7 @@ func pushoverFromEnv() (sink, error) {
 	if len(p.dests) == 0 {
 		return nil, fmt.Errorf("alerter: pushover: %s has no key", EnvPushoverDest)
 	}
-	for lvl, key := range []string{EnvPushoverNormal, EnvPushoverPriority, EnvPushoverEmergency} {
+	for lvl, key := range []string{EnvPushoverNormal, EnvPushoverUrgent, EnvPushoverEmergency} {
 		n, err := pushoverPriority(key, pushoverDefaults[lvl])
 		if err != nil {
 			return nil, err

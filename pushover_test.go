@@ -14,7 +14,7 @@ import (
 	"testing"
 )
 
-var pushoverLevelVars = []string{EnvPushoverNormal, EnvPushoverPriority, EnvPushoverEmergency}
+var pushoverLevelVars = []string{EnvPushoverNormal, EnvPushoverUrgent, EnvPushoverEmergency}
 
 func TestPushoverPriorityDefaults(t *testing.T) {
 	setEnv(t, goodPushover)
@@ -92,13 +92,13 @@ func TestPushoverSendsPriorityForLevel(t *testing.T) {
 		wantEmergency bool
 	}{
 		{"defaults normal", pushoverDefaults, Normal, "0", false},
-		{"defaults priority", pushoverDefaults, Priority, "1", false},
+		{"defaults priority", pushoverDefaults, Urgent, "1", false},
 		{"defaults emergency", pushoverDefaults, Emergency, "2", true},
 		{"all quiet emergency", [3]int{0, 0, 0}, Emergency, "0", false},
-		{"all quiet priority", [3]int{0, 0, 0}, Priority, "0", false},
+		{"all quiet priority", [3]int{0, 0, 0}, Urgent, "0", false},
 		{"lowest normal", [3]int{-2, 0, 1}, Normal, "-2", false},
 		{"quiet normal", [3]int{-1, 0, 1}, Normal, "-1", false},
-		{"emergency on priority", [3]int{0, 2, 2}, Priority, "2", true},
+		{"emergency on priority", [3]int{0, 2, 2}, Urgent, "2", true},
 		{"emergency on normal", [3]int{2, 0, 0}, Normal, "2", true},
 		{"out of range level is normal", [3]int{-1, 1, 2}, 9, "-1", false},
 		{"negative level is normal", [3]int{-1, 1, 2}, -5, "-1", false},
@@ -133,10 +133,10 @@ func TestPushoverLevelsEndToEnd(t *testing.T) {
 	f := &fakeAPI{}
 	serve(t, f, &pushoverURL)
 	setEnv(t, goodPushover)
-	setEnv(t, map[string]string{EnvPushoverNormal: "-1", EnvPushoverPriority: "0", EnvPushoverEmergency: "1"})
+	setEnv(t, map[string]string{EnvPushoverNormal: "-1", EnvPushoverUrgent: "0", EnvPushoverEmergency: "1"})
 	d, path, _ := newTest(t)
 	d.Normal("n", "")
-	d.Priority("p", "")
+	d.Urgent("p", "")
 	d.Emergency("e", "")
 	d.Send(Alert{Priority: 42, Title: "bogus"})
 	closeAndRead(t, d, path)

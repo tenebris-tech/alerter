@@ -25,7 +25,7 @@ const (
 	EnvPushoverDest  = "ALERTER_PUSHOVER_DEST"  // user or group keys
 	// The Pushover priority (-2..2) each alert level is sent at.
 	EnvPushoverNormal    = "ALERTER_PUSHOVER_NORMAL"    // default 0
-	EnvPushoverPriority  = "ALERTER_PUSHOVER_PRIORITY"  // default 1: bypasses quiet hours
+	EnvPushoverUrgent    = "ALERTER_PUSHOVER_URGENT"    // default 1: bypasses quiet hours
 	EnvPushoverEmergency = "ALERTER_PUSHOVER_EMERGENCY" // default 2: repeats until acknowledged
 
 	EnvTelnyxAPIKey = "ALERTER_TELNYX_API_KEY" // Telnyx API v2 key
@@ -133,7 +133,7 @@ func source(a Alert) string {
 }
 
 // priorityLine says how urgent the alert is and where it came from:
-// "Normal alert from ClawEh@empire", "Priority alert from …" or "Emergency
+// "Normal alert from ClawEh@empire", "Urgent alert from …" or "Emergency
 // alert from …". The words avoid high and low, which read like measurements.
 // It is for text with no subject line (SMS); body leaves the source out
 // because the subject already carries it.
@@ -158,7 +158,7 @@ func subject(a Alert) string {
 }
 
 // body is the message text Pushover carries under its title (mail uses the
-// fuller mailBody): the description first, then the level ("Priority alert")
+// fuller mailBody): the description first, then the level ("Urgent alert")
 // and particulars. The source is in the subject, so it is not repeated.
 func body(a Alert) string {
 	var b strings.Builder

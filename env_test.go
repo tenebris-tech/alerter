@@ -136,11 +136,11 @@ func TestNewLoadsEnvFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	d.Priority("t", "d")
+	d.Urgent("t", "d")
 	if err := d.Close(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if b, err := os.ReadFile(path); err != nil || !strings.Contains(string(b), "PRIORITY  t: d") { //nolint:gosec // test temp file
+	if b, err := os.ReadFile(path); err != nil || !strings.Contains(string(b), "URGENT    t: d") { //nolint:gosec // test temp file
 		t.Errorf("log named in ~/.alerter: %q, %v", b, err)
 	}
 }

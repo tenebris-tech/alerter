@@ -17,8 +17,8 @@ func (Nop) Send(Alert) {}
 // Normal discards the alert.
 func (Nop) Normal(string, string, ...string) {}
 
-// Priority discards the alert.
-func (Nop) Priority(string, string, ...string) {}
+// Urgent discards the alert.
+func (Nop) Urgent(string, string, ...string) {}
 
 // Emergency discards the alert.
 func (Nop) Emergency(string, string, ...string) {}

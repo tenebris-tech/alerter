@@ -15,7 +15,7 @@ func TestEveryLevelThroughEveryChannel(t *testing.T) {
 	f := channels(t)
 	d, path, _ := newTest(t)
 	d.Normal("Level zero", "n")
-	d.Priority("Level one", "p")
+	d.Urgent("Level one", "p")
 	d.Emergency("Level two", "e")
 	log := closeAndRead(t, d, path)
 
@@ -24,7 +24,7 @@ func TestEveryLevelThroughEveryChannel(t *testing.T) {
 	}
 	for _, want := range []string{
 		" NORMAL    Claw@empire Level zero: n\n",
-		" PRIORITY  Claw@empire Level one: p\n",
+		" URGENT    Claw@empire Level one: p\n",
 		" EMERGENCY Claw@empire Level two: e\n",
 	} {
 		if !strings.Contains(log, want) {
@@ -34,7 +34,7 @@ func TestEveryLevelThroughEveryChannel(t *testing.T) {
 	if f.push.count() != 3 || f.sms.count() != 3 || f.hook.count() != 3 {
 		t.Fatalf("pushover %d, sms %d, webhook %d; want 3 each", f.push.count(), f.sms.count(), f.hook.count())
 	}
-	names := []string{"Normal", "Priority", "Emergency"}
+	names := []string{"Normal", "Urgent", "Emergency"}
 	pushPrio := []string{"0", "1", "2"}
 	// Channels run in parallel per alert, but alerts are delivered in order.
 	for i := range 3 {
@@ -77,7 +77,7 @@ func TestEscalationIsNotSuppressed(t *testing.T) {
 func TestKeyIncludesLevelAndNormalises(t *testing.T) {
 	base := Alert{Title: "t", EventID: "e"}
 	keys := map[string]bool{}
-	for _, p := range []int{Normal, Priority, Emergency} {
+	for _, p := range []int{Normal, Urgent, Emergency} {
 		a := base
 		a.Priority = p
 		keys[a.key()] = true

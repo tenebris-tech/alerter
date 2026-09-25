@@ -20,8 +20,8 @@ func (r *recorder) Send(a alerter.Alert) { r.alerts = append(r.alerts, a) }
 func (r *recorder) Normal(t, d string, x ...string) {
 	r.Send(alerter.Alert{Priority: alerter.Normal, Title: t, Description: d, Details: strings.Join(x, "\n")})
 }
-func (r *recorder) Priority(t, d string, x ...string) {
-	r.Send(alerter.Alert{Priority: alerter.Priority, Title: t, Description: d, Details: strings.Join(x, "\n")})
+func (r *recorder) Urgent(t, d string, x ...string) {
+	r.Send(alerter.Alert{Priority: alerter.Urgent, Title: t, Description: d, Details: strings.Join(x, "\n")})
 }
 func (r *recorder) Emergency(t, d string, x ...string) {
 	r.Send(alerter.Alert{Priority: alerter.Emergency, Title: t, Description: d, Details: strings.Join(x, "\n")})
@@ -34,7 +34,7 @@ func TestSendRaisesOnePerLevel(t *testing.T) {
 	if len(r.alerts) != testAlerts || testAlerts != 3 {
 		t.Fatalf("alerts = %d (testAlerts %d), want 3", len(r.alerts), testAlerts)
 	}
-	for i, want := range []int{alerter.Normal, alerter.Priority, alerter.Emergency} {
+	for i, want := range []int{alerter.Normal, alerter.Urgent, alerter.Emergency} {
 		a := r.alerts[i]
 		if a.Priority != want {
 			t.Errorf("alert %d priority = %d, want %d", i, a.Priority, want)

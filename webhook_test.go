@@ -66,7 +66,7 @@ func TestWebhookPayload(t *testing.T) {
 		t.Fatalf("payload is not JSON: %v", err)
 	}
 	want := map[string]any{
-		"priority": float64(1), "priority_name": "priority",
+		"priority": float64(1), "priority_name": "urgent",
 		"title": "Provider authentication failed", "description": "claude-cli returned 401",
 		"details": "run `claude login`\non the host\n", "event_id": "claude-cli",
 		"app": "ClawEh", "instance": "empire", "time": "2026-09-24T10:00:00-04:00",
@@ -170,7 +170,7 @@ func TestWebhookPayloadLevels(t *testing.T) {
 		num  float64
 		name string
 	}{
-		{Normal, 0, "normal"}, {Priority, 1, "priority"}, {Emergency, 2, "emergency"},
+		{Normal, 0, "normal"}, {Urgent, 1, "urgent"}, {Emergency, 2, "emergency"},
 		{-1, 0, "normal"}, {3, 0, "normal"},
 	} {
 		var p map[string]any

@@ -128,7 +128,7 @@ func (s *smtpSink) message(a Alert) []byte {
 //	claude-cli returned 401
 //
 //	Source: ClawEh@empire
-//	Priority: Priority
+//	Priority: Urgent
 //	Date: Thu, 24 Sep 2026 10:00:00 -0400
 //	Event: claude-cli
 //	Repeats: 3 suppressed since the last one

@@ -52,7 +52,7 @@ func smsFromEnv() (sink, error) {
 func (s *smsSink) name() string { return "sms" }
 
 // smsText leads with the title and description, then the priority line:
-// "Provider authentication failed: claude-cli returned 401\nPriority alert
+// "Provider authentication failed: claude-cli returned 401\nUrgent alert
 // from ClawEh@empire".
 func smsText(a Alert) string {
 	t := strings.Join(strings.Fields(a.Title), " ")

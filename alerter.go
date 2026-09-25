@@ -47,9 +47,9 @@ const (
 const (
 	// Normal is degraded but working: someone should look when convenient.
 	Normal = 0
-	// Priority stops the application doing part of its job and needs a
+	// Urgent stops the application doing part of its job and needs a
 	// person soon.
-	Priority = 1
+	Urgent = 1
 	// Emergency needs a person now.
 	Emergency = 2
 )
@@ -62,12 +62,12 @@ func level(p int) int {
 	return p
 }
 
-// priorityName is "Normal", "Priority" or "Emergency". Out-of-range values
+// priorityName is "Normal", "Urgent" or "Emergency". Out-of-range values
 // are Normal, as Send treats them.
 func priorityName(p int) string {
 	switch level(p) {
-	case Priority:
-		return "Priority"
+	case Urgent:
+		return "Urgent"
 	case Emergency:
 		return "Emergency"
 	}
@@ -77,7 +77,7 @@ func priorityName(p int) string {
 // Alert is one notification. The caller fills Priority, Title, Description
 // and, optionally, Details and EventID; the alerter stamps the rest.
 type Alert struct {
-	// Priority is Normal (0), Priority (1) or Emergency (2). Any other value
+	// Priority is Normal (0), Urgent (1) or Emergency (2). Any other value
 	// is treated as Normal. How each level is delivered (for example the
 	// Pushover priority) is the operator's choice, not the caller's.
 	Priority int
@@ -117,13 +117,13 @@ func (a Alert) key() string {
 }
 
 // Alerter is what application packages receive. Send never blocks the caller
-// beyond an enqueue and never panics; Normal, Priority and Emergency are
+// beyond an enqueue and never panics; Normal, Urgent and Emergency are
 // shorthands for Send at that level. Close delivers what is queued, within
 // ctx, then stops.
 type Alerter interface {
 	Send(a Alert)
 	Normal(title, description string, details ...string)
-	Priority(title, description string, details ...string)
+	Urgent(title, description string, details ...string)
 	Emergency(title, description string, details ...string)
 	Close(ctx context.Context) error
 }
@@ -315,9 +315,9 @@ func (d *Dispatcher) Normal(title, description string, details ...string) {
 	d.sendAt(Normal, title, description, details)
 }
 
-// Priority sends a Priority alert.
-func (d *Dispatcher) Priority(title, description string, details ...string) {
-	d.sendAt(Priority, title, description, details)
+// Urgent sends an Urgent alert.
+func (d *Dispatcher) Urgent(title, description string, details ...string) {
+	d.sendAt(Urgent, title, description, details)
 }
 
 // Emergency sends an Emergency alert.

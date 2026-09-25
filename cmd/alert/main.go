@@ -4,7 +4,7 @@
  ******************************************************************************/
 
 // Command alert sends three test alerts, one at each level (Normal,
-// Priority, Emergency), through every channel the environment (and
+// Urgent, Emergency), through every channel the environment (and
 // ~/.alerter) configures, then reports what happened. It exits non-zero
 // unless all three were delivered. With Pushover at its default priorities
 // the Emergency test alert is a Pushover emergency: it bypasses quiet hours
@@ -79,6 +79,6 @@ const testAlerts = 3
 func send(al alerter.Alerter) {
 	const title, description = "Test alert", "alert sent this to test delivery; no action needed"
 	al.Normal(title, description)
-	al.Priority(title, description)
+	al.Urgent(title, description)
 	al.Emergency(title, description)
 }

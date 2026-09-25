@@ -121,7 +121,7 @@ func TestWebhookEndToEnd(t *testing.T) {
 	if len(got) != 3 {
 		t.Fatalf("webhook requests = %d, want 3", len(got))
 	}
-	for i, wantName := range []string{"normal", "priority", "emergency"} {
+	for i, wantName := range []string{"normal", "urgent", "emergency"} {
 		var p map[string]any
 		if err := json.Unmarshal([]byte(got[i].body), &p); err != nil {
 			t.Fatalf("body %d not JSON: %v", i, err)

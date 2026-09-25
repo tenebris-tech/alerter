@@ -23,7 +23,7 @@ if err != nil {
 }
 defer al.Close(ctx)
 
-al.Priority("Provider authentication failed", "claude-cli returned 401",
+al.Urgent("Provider authentication failed", "claude-cli returned 401",
     "run `claude login` on the host")
 al.Emergency("Session store not writable", "disk full on /var")
 al.Send(alerter.Alert{
@@ -59,11 +59,11 @@ Both file settings expect a full path and file name. The file is created if
 missing and appended to otherwise. One record per alert:
 
 ```
-2026-09-24T10:00:00-04:00 PRIORITY  ClawEh@empire [claude-cli] Provider authentication failed: claude-cli returned 401
+2026-09-24T10:00:00-04:00 URGENT    ClawEh@empire [claude-cli] Provider authentication failed: claude-cli returned 401
     run `claude login` on the host
 ```
 
-The level is written as `NORMAL`, `PRIORITY` or `EMERGENCY`.
+The level is written as `NORMAL`, `URGENT` or `EMERGENCY`.
 
 **Channels**, each one on when any of its variables is set. A channel that is
 on but incomplete or malformed (a missing variable, a bad port, a number not
@@ -72,7 +72,7 @@ startup rather than at the first alert. Lists are comma separated.
 
 | Channel | Variables | Notes |
 |---|---|---|
-| Pushover | `ALERTER_PUSHOVER_TOKEN` (application token), `ALERTER_PUSHOVER_DEST` (user or group keys); optional `ALERTER_PUSHOVER_NORMAL`, `ALERTER_PUSHOVER_PRIORITY`, `ALERTER_PUSHOVER_EMERGENCY` | The Pushover priority (-2 to 2) each alert level is sent at; defaults 0, 1 (bypasses quiet hours) and 2 (bypasses quiet hours and repeats every 60 seconds until acknowledged, for up to an hour). Set all three to 0 never to be woken. |
+| Pushover | `ALERTER_PUSHOVER_TOKEN` (application token), `ALERTER_PUSHOVER_DEST` (user or group keys); optional `ALERTER_PUSHOVER_NORMAL`, `ALERTER_PUSHOVER_URGENT`, `ALERTER_PUSHOVER_EMERGENCY` | The Pushover priority (-2 to 2) each alert level is sent at; defaults 0, 1 (bypasses quiet hours) and 2 (bypasses quiet hours and repeats every 60 seconds until acknowledged, for up to an hour). Set all three to 0 never to be woken. |
 | SMS (Telnyx) | `ALERTER_TELNYX_API_KEY`, `ALERTER_SMS_FROM`, `ALERTER_SMS_TO` (E.164, e.g. `+15551234567`) | Title and description, then the priority line; up to 300 characters. |
 | Mail (SMTP) | `ALERTER_SMTP_HOST`, `ALERTER_SMTP_FROM`, `ALERTER_SMTP_TO`; optional `ALERTER_SMTP_PORT` (default 587), `ALERTER_SMTP_USER` with `ALERTER_SMTP_PASSWORD` | Port 465 is implicit TLS; any other port must offer STARTTLS, so neither the alert nor the credentials cross the network in clear. A loopback host (a local relay) may run without TLS. |
 | Webhook | `ALERTER_WEBHOOK_URL` (http or https); optional `ALERTER_WEBHOOK_HEADERS`, a JSON object of extra headers, e.g. `{"Authorization":"Bearer x"}` | One JSON `POST` per alert (below); any 2xx is success. Redirects are not followed. |
@@ -81,14 +81,14 @@ The webhook body, built by `webhookPayload` in `webhook_payload.go` (the one
 place to change its shape):
 
 ```json
-{"priority":1,"priority_name":"priority","title":"Provider authentication failed",
+{"priority":1,"priority_name":"urgent","title":"Provider authentication failed",
  "description":"claude-cli returned 401","details":"run `claude login` on the host",
  "event_id":"claude-cli","app":"ClawEh","instance":"empire",
  "time":"2026-09-24T10:00:00-04:00","repeats":0,
  "subject":"Provider authentication failed (ClawEh@empire)"}
 ```
 
-`priority` is the level, 0 to 2, and `priority_name` is `normal`, `priority`
+`priority` is the level, 0 to 2, and `priority_name` is `normal`, `urgent`
 or `emergency`. `details`, `event_id`, `app` and `instance` are omitted when
 empty.
 
@@ -103,7 +103,7 @@ none), then labelled lines, then the details:
 claude-cli returned 401
 
 Source: ClawEh@empire
-Priority: Priority
+Priority: Urgent
 Date: Thu, 24 Sep 2026 10:00:00 -0400
 Event: claude-cli
 Repeats: 3 suppressed since the last one
@@ -112,10 +112,10 @@ run `claude login` on the host
 ```
 
 A Pushover message is shorter: the description, then the level (`Normal
-alert`, `Priority alert` or `Emergency alert`), the event id, time, repeat
+alert`, `Urgent alert` or `Emergency alert`), the event id, time, repeat
 count and details, with the source stated once, in the title.
 An SMS has no subject, so it reads `Title: description` and then, for
-example, `Priority alert from ClawEh@empire`.
+example, `Urgent alert from ClawEh@empire`.
 
 Every channel receives every alert that passes repeat suppression. The
 channels are sent to in parallel, each bounded by a 30-second timeout, so a
@@ -130,9 +130,9 @@ stop the others; it is recorded in the log after the alert:
 ## Behaviour
 
 - **Priority**: `Alert.Priority` is `alerter.Normal` (0, degraded but
-  working), `alerter.Priority` (1, stops the application doing part of its
+  working), `alerter.Urgent` (1, stops the application doing part of its
   job) or `alerter.Emergency` (2, needs a person now); any other value is
-  treated as Normal. `Normal()`, `Priority()` and `Emergency()` are
+  treated as Normal. `Normal()`, `Urgent()` and `Emergency()` are
   shorthands for `Send`. How each level is delivered is the operator's
   choice (see `ALERTER_PUSHOVER_*`).
 - **Repeat suppression**: an alert with the same level and title (and the

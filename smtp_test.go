@@ -259,7 +259,7 @@ func TestSMTPMessage(t *testing.T) {
 		t.Errorf("not quoted-printable:\n%s", head)
 	}
 	want := "claude-cli returned 401\r\n\r\n" +
-		"Source: ClawEh@empire\r\nPriority: Priority\r\nDate: Thu, 24 Sep 2026 10:00:00 -0400\r\n" +
+		"Source: ClawEh@empire\r\nPriority: Urgent\r\nDate: Thu, 24 Sep 2026 10:00:00 -0400\r\n" +
 		"Event: claude-cli\r\nRepeats: 3 suppressed since the last one\r\n\r\n" +
 		"run `claude login`\r\non the host\r\n"
 	if got := decodeQP(t, text); got != want {
@@ -467,7 +467,7 @@ func TestSMTPPriorityHeaders(t *testing.T) {
 	for _, tc := range []struct {
 		level  int
 		marked bool
-	}{{Normal, false}, {Priority, true}, {Emergency, true}, {9, false}} {
+	}{{Normal, false}, {Urgent, true}, {Emergency, true}, {9, false}} {
 		msg := string(s.message(Alert{Priority: tc.level, Title: "t", Time: sample.Time}))
 		head, _, _ := strings.Cut(msg, "\r\n\r\n")
 		marked := strings.Contains(head, "X-Priority: 1\r\n") && strings.Contains(head, "Importance: high\r\n")
@@ -490,8 +490,8 @@ func TestMailBody(t *testing.T) {
 			"d\n\nSource: A@i\nPriority: Emergency\nDate: Thu, 24 Sep 2026 10:00:00 -0400\n"},
 		{"out of range level", Alert{Priority: 9, Title: "t", Description: "d", Time: at},
 			"d\n\nPriority: Normal\nDate: Thu, 24 Sep 2026 10:00:00 -0400\n"},
-		{"event and details", Alert{Priority: Priority, Title: "t", Description: "d", EventID: "e", Details: "x\ny\n\n", Time: at},
-			"d\n\nPriority: Priority\nDate: Thu, 24 Sep 2026 10:00:00 -0400\nEvent: e\n\nx\ny\n"},
+		{"event and details", Alert{Priority: Urgent, Title: "t", Description: "d", EventID: "e", Details: "x\ny\n\n", Time: at},
+			"d\n\nPriority: Urgent\nDate: Thu, 24 Sep 2026 10:00:00 -0400\nEvent: e\n\nx\ny\n"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -508,13 +508,13 @@ func TestMailIsFullerThanPushover(t *testing.T) {
 	msg := string(newSMTPSink("h", 25, "", "").message(sample))
 	_, text, _ := strings.Cut(msg, "\r\n\r\n")
 	mail := decodeQP(t, text)
-	for _, want := range []string{"\r\nSource: ClawEh@empire\r\n", "\r\nPriority: Priority\r\n", "\r\nDate: "} {
+	for _, want := range []string{"\r\nSource: ClawEh@empire\r\n", "\r\nPriority: Urgent\r\n", "\r\nDate: "} {
 		if !strings.Contains(mail, want) {
 			t.Errorf("mail lacks %q", want)
 		}
 	}
 	push := pushoverForm(t, sample)
-	if strings.Contains(push, "Source:") || strings.Contains(push, "Date:") || !strings.Contains(push, "\nPriority alert\n") {
+	if strings.Contains(push, "Source:") || strings.Contains(push, "Date:") || !strings.Contains(push, "\nUrgent alert\n") {
 		t.Errorf("pushover text changed: %q", push)
 	}
 }

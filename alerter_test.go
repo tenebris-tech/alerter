@@ -112,7 +112,7 @@ func TestDestinationPrecedence(t *testing.T) {
 		if err != nil {
 			t.Fatalf("New: %v", err)
 		}
-		d.Priority("t", "d")
+		d.Urgent("t", "d")
 		if err := d.Close(context.Background()); err != nil {
 			t.Fatalf("Close: %v", err)
 		}
@@ -163,10 +163,10 @@ func TestDestinationPrecedence(t *testing.T) {
 
 func TestSendWritesRecord(t *testing.T) {
 	d, path, _ := newTest(t)
-	d.Send(Alert{Priority: Priority, Title: "Provider authentication failed", Description: "claude-cli returned 401",
+	d.Send(Alert{Priority: Urgent, Title: "Provider authentication failed", Description: "claude-cli returned 401",
 		Details: "line one\nline two\n", EventID: "claude-cli"})
 	got := closeAndRead(t, d, path)
-	want := "2026-09-24T10:00:00-04:00 PRIORITY  Claw@empire [claude-cli] Provider authentication failed: claude-cli returned 401\n" +
+	want := "2026-09-24T10:00:00-04:00 URGENT    Claw@empire [claude-cli] Provider authentication failed: claude-cli returned 401\n" +
 		"    line one\n    line two\n"
 	if got != want {
 		t.Errorf("record =\n%q\nwant\n%q", got, want)
@@ -179,11 +179,11 @@ func TestSendWritesRecord(t *testing.T) {
 func TestLevelHelpers(t *testing.T) {
 	d, path, _ := newTest(t)
 	d.Normal("N", "normal one")
-	d.Priority("P", "priority one", "d1", "d2")
+	d.Urgent("P", "priority one", "d1", "d2")
 	d.Emergency("E", "emergency one", "e1")
 	got := closeAndRead(t, d, path)
 	want := "2026-09-24T10:00:00-04:00 NORMAL    Claw@empire N: normal one\n" +
-		"2026-09-24T10:00:00-04:00 PRIORITY  Claw@empire P: priority one\n    d1\n    d2\n" +
+		"2026-09-24T10:00:00-04:00 URGENT    Claw@empire P: priority one\n    d1\n    d2\n" +
 		"2026-09-24T10:00:00-04:00 EMERGENCY Claw@empire E: emergency one\n    e1\n"
 	if got != want {
 		t.Errorf("log =\n%s\nwant\n%s", got, want)
@@ -209,12 +209,12 @@ func TestHelpersStampPriority(t *testing.T) {
 	c := &capture{}
 	d.sinks = []sink{c}
 	d.Normal("n", "")
-	d.Priority("p", "")
+	d.Urgent("p", "")
 	d.Emergency("e", "")
 	if err := d.Close(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	for i, want := range []int{Normal, Priority, Emergency} {
+	for i, want := range []int{Normal, Urgent, Emergency} {
 		if c.alerts[i].Priority != want {
 			t.Errorf("alert %d priority = %d, want %d", i, c.alerts[i].Priority, want)
 		}
@@ -225,8 +225,8 @@ func TestSendNormalisesPriority(t *testing.T) {
 	d, path, _ := newTest(t, WithSuppressWindow(0))
 	c := &capture{}
 	d.sinks = []sink{c}
-	in := []int{-1, 3, 100, math.MinInt, math.MaxInt, Normal, Priority, Emergency}
-	want := []int{Normal, Normal, Normal, Normal, Normal, Normal, Priority, Emergency}
+	in := []int{-1, 3, 100, math.MinInt, math.MaxInt, Normal, Urgent, Emergency}
+	want := []int{Normal, Normal, Normal, Normal, Normal, Normal, Urgent, Emergency}
 	for i, p := range in {
 		d.Send(Alert{Priority: p, Title: fmt.Sprintf("t%d", i)})
 	}
@@ -247,7 +247,7 @@ func TestLevelAndName(t *testing.T) {
 		level int
 		name  string
 	}{
-		{Normal, Normal, "Normal"}, {Priority, Priority, "Priority"}, {Emergency, Emergency, "Emergency"},
+		{Normal, Normal, "Normal"}, {Urgent, Urgent, "Urgent"}, {Emergency, Emergency, "Emergency"},
 		{-1, Normal, "Normal"}, {3, Normal, "Normal"}, {math.MaxInt, Normal, "Normal"},
 	}
 	for _, tc := range cases {
@@ -255,7 +255,7 @@ func TestLevelAndName(t *testing.T) {
 			t.Errorf("%d: level %d name %q", tc.in, level(tc.in), priorityName(tc.in))
 		}
 	}
-	if Normal != 0 || Priority != 1 || Emergency != 2 {
+	if Normal != 0 || Urgent != 1 || Emergency != 2 {
 		t.Error("the levels are part of the contract: 0, 1, 2")
 	}
 }
@@ -272,8 +272,8 @@ func TestFormat(t *testing.T) {
 		{"out of range", Alert{Time: at, Priority: 7, Title: "T"}, "2026-01-02T03:04:05Z NORMAL    T\n"},
 		{"app only", Alert{Time: at, Title: "T", App: "A"}, "2026-01-02T03:04:05Z NORMAL    A T\n"},
 		{"instance only", Alert{Time: at, Title: "T", Instance: "I"}, "2026-01-02T03:04:05Z NORMAL    @I T\n"},
-		{"repeats", Alert{Time: at, Priority: Priority, Title: "T", Description: "D", Repeats: 3},
-			"2026-01-02T03:04:05Z PRIORITY  T: D (3 repeat(s) suppressed since the last one)\n"},
+		{"repeats", Alert{Time: at, Priority: Urgent, Title: "T", Description: "D", Repeats: 3},
+			"2026-01-02T03:04:05Z URGENT    T: D (3 repeat(s) suppressed since the last one)\n"},
 		{"details without trailing newline", Alert{Time: at, Title: "T", Details: "x"}, "2026-01-02T03:04:05Z NORMAL    T\n    x\n"},
 	}
 	for _, tc := range cases {
@@ -288,13 +288,13 @@ func TestFormat(t *testing.T) {
 func TestSuppression(t *testing.T) {
 	d, path, c := newTest(t, WithSuppressWindow(10*time.Minute))
 	for range 3 {
-		d.Priority("Logged out", "again")
+		d.Urgent("Logged out", "again")
 	}
-	d.Priority("Logged out", "other provider", "")
+	d.Urgent("Logged out", "other provider", "")
 	d.Send(Alert{Title: "Logged out", EventID: "codex"}) // different key
 	d.Send(Alert{Title: "Logged out", EventID: "codex"}) // repeat of that key
 	c.advance(11 * time.Minute)
-	d.Priority("Logged out", "after the window")
+	d.Urgent("Logged out", "after the window")
 	got := closeAndRead(t, d, path)
 
 	lines := strings.Split(strings.TrimSpace(got), "\n")
@@ -410,7 +410,7 @@ func TestCloseIdempotentAndDropsAfter(t *testing.T) {
 	if err := d.Close(context.Background()); err != nil {
 		t.Errorf("second Close: %v", err)
 	}
-	d.Priority("late", "after close")
+	d.Urgent("late", "after close")
 	if s := d.Stats(); s.Dropped != 1 {
 		t.Errorf("dropped after close = %d, want 1", s.Dropped)
 	}
@@ -444,7 +444,7 @@ func TestWriteFailureCounted(t *testing.T) {
 	d.log.mu.Lock()
 	d.log.w = failingWriter{}
 	d.log.mu.Unlock()
-	d.Priority("x", "y")
+	d.Urgent("x", "y")
 	if err := d.Close(context.Background()); err != nil {
 		t.Fatalf("Close: %v", err)
 	}
@@ -473,7 +473,7 @@ func TestLogWriterCloseTwice(t *testing.T) {
 func TestNop(t *testing.T) {
 	var n Nop
 	n.Send(Alert{Title: "x"})
-	n.Priority("h", "d", "x")
+	n.Urgent("h", "d", "x")
 	n.Emergency("e", "d")
 	n.Normal("l", "d")
 	if err := n.Close(context.Background()); err != nil {
