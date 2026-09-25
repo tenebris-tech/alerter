@@ -70,6 +70,6 @@ func main() {
 // never holds one back.
 func send(al alerter.Alerter, now time.Time) {
 	stamp := "sent at " + now.Format(time.RFC3339)
-	al.High("Test alert (high priority)", "alert sent this to test high-priority delivery; no action needed", stamp)
-	al.Low("Test alert (low priority)", "alert sent this to test low-priority delivery; no action needed", stamp)
+	al.High("Priority test alert", "alert sent this to test priority delivery; no action needed", stamp)
+	al.Low("Normal test alert", "alert sent this to test normal delivery; no action needed", stamp)
 }

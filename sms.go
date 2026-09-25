@@ -51,14 +51,17 @@ func smsFromEnv() (sink, error) {
 
 func (s *smsSink) name() string { return "sms" }
 
-// smsText is the subject and, when there is one, the description.
+// smsText leads with the title and description, then the priority line:
+// "Provider authentication failed: claude-cli returned 401\nPriority alert
+// from ClawEh@empire".
 func smsText(a Alert) string {
-	t := subject(a)
+	t := strings.Join(strings.Fields(a.Title), " ")
 	if a.Description != "" {
-		t += "\n" + a.Description
+		t += ": " + a.Description
 	}
+	t += "\n" + priorityLine(a)
 	if a.Repeats > 0 {
-		t += fmt.Sprintf("\n(%d repeat(s) suppressed)", a.Repeats)
+		t += fmt.Sprintf(" (%d repeat(s) suppressed)", a.Repeats)
 	}
 	return truncate(t, smsMax)
 }

@@ -243,7 +243,7 @@ func TestSMTPMessage(t *testing.T) {
 	for _, want := range []string{
 		`From: "Alerts" <alerts@example.com>`,
 		`To: <ops@example.com>, "Pager" <pager@example.com>`,
-		"Subject: HIGH ClawEh@empire: Provider authentication failed",
+		"Subject: Provider authentication failed (ClawEh@empire)",
 		"Date: Thu, 24 Sep 2026 10:00:00 -0400",
 		"X-Priority: 1", "Importance: high",
 		"MIME-Version: 1.0", "Content-Type: text/plain; charset=UTF-8",

@@ -180,14 +180,14 @@ var sample = Alert{
 }
 
 func TestSubject(t *testing.T) {
-	if got := subject(sample); got != "HIGH ClawEh@empire: Provider authentication failed" {
+	if got := subject(sample); got != "Provider authentication failed (ClawEh@empire)" {
 		t.Errorf("subject = %q", got)
 	}
 	cases := map[string]Alert{
-		"LOW ClawEh: x":        {Title: "x", App: "ClawEh"},
-		"LOW @empire: x":       {Title: "x", Instance: "empire"},
-		"LOW: x":               {Title: "x"},
-		"HIGH a: line1 line2 ": {High: true, App: "a", Title: "line1\r\nline2 "},
+		"x (ClawEh)":      {Title: "x", App: "ClawEh"},
+		"x (@empire)":     {Title: "x", Instance: "empire"},
+		"x":               {Title: "x"},
+		"line1 line2 (a)": {High: true, App: "a", Title: "line1\r\nline2 "},
 	}
 	for want, a := range cases {
 		if got := subject(a); got != strings.TrimSpace(want) {
@@ -198,20 +198,20 @@ func TestSubject(t *testing.T) {
 
 func TestBody(t *testing.T) {
 	want := "claude-cli returned 401\n\n" +
-		"Priority: HIGH\nSource: ClawEh@empire\nEvent: claude-cli\n" +
+		"Priority alert from ClawEh@empire\nEvent: claude-cli\n" +
 		"Time: 2026-09-24T10:00:00-04:00\nRepeats: 3 suppressed since the last one\n\n" +
 		"run `claude login`\non the host\n"
 	if got := body(sample); got != want {
 		t.Errorf("body =\n%s\nwant\n%s", got, want)
 	}
 	minimal := body(Alert{Title: "x", Time: sample.Time})
-	if minimal != "Priority: LOW\nTime: 2026-09-24T10:00:00-04:00\n" {
+	if minimal != "Normal alert\nTime: 2026-09-24T10:00:00-04:00\n" {
 		t.Errorf("minimal body = %q", minimal)
 	}
 }
 
 func TestSMSText(t *testing.T) {
-	want := "HIGH ClawEh@empire: Provider authentication failed\nclaude-cli returned 401\n(3 repeat(s) suppressed)"
+	want := "Provider authentication failed: claude-cli returned 401\nPriority alert from ClawEh@empire (3 repeat(s) suppressed)"
 	if got := smsText(sample); got != want {
 		t.Errorf("smsText = %q", got)
 	}

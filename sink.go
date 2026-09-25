@@ -23,6 +23,8 @@ import (
 const (
 	EnvPushoverToken = "ALERTER_PUSHOVER_TOKEN" // application API token
 	EnvPushoverDest  = "ALERTER_PUSHOVER_DEST"  // user or group keys
+	EnvPushoverHigh  = "ALERTER_PUSHOVER_HIGH"  // priority -2..2 for high alerts, default 1
+	EnvPushoverLow   = "ALERTER_PUSHOVER_LOW"   // priority -2..2 for low alerts, default 0
 
 	EnvTelnyxAPIKey = "ALERTER_TELNYX_API_KEY" // Telnyx API v2 key
 	EnvSMSFrom      = "ALERTER_SMS_FROM"       // E.164 sending number
@@ -128,35 +130,40 @@ func source(a Alert) string {
 	return ""
 }
 
-func priority(a Alert) string {
+// priorityLine says how urgent the alert is and where it came from:
+// "Priority alert from ClawEh@empire" or "Normal alert from ClawEh@empire".
+// The words avoid high and low, which read like measurements.
+func priorityLine(a Alert) string {
+	s := "Normal alert"
 	if a.High {
-		return "HIGH"
+		s = "Priority alert"
 	}
-	return "LOW"
+	if src := source(a); src != "" {
+		s += " from " + src
+	}
+	return s
 }
 
-// subject is the one-line heading every channel uses:
-// "HIGH ClawEh@empire: Provider authentication failed". Line breaks are
+// subject is the one-line heading every channel uses. It leads with the
+// title, the part that matters, followed by the source:
+// "Provider authentication failed (ClawEh@empire)". Line breaks are
 // flattened so it is safe as a mail header.
 func subject(a Alert) string {
-	s := priority(a)
+	s := a.Title
 	if src := source(a); src != "" {
-		s += " " + src
+		s += " (" + src + ")"
 	}
-	s += ": " + a.Title
 	return strings.Join(strings.Fields(s), " ")
 }
 
-// body is the message text for channels that carry more than a line.
+// body is the message text for channels that carry more than a line: the
+// description first, then the priority, source and particulars.
 func body(a Alert) string {
 	var b strings.Builder
 	if a.Description != "" {
 		b.WriteString(a.Description + "\n\n")
 	}
-	fmt.Fprintf(&b, "Priority: %s\n", priority(a))
-	if src := source(a); src != "" {
-		fmt.Fprintf(&b, "Source: %s\n", src)
-	}
+	b.WriteString(priorityLine(a) + "\n")
 	if a.EventID != "" {
 		fmt.Fprintf(&b, "Event: %s\n", a.EventID)
 	}

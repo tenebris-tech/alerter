@@ -68,8 +68,8 @@ startup rather than at the first alert. Lists are comma separated.
 
 | Channel | Variables | Notes |
 |---|---|---|
-| Pushover | `ALERTER_PUSHOVER_TOKEN` (application token), `ALERTER_PUSHOVER_DEST` (user or group keys) | High alerts at priority 1 (bypass quiet hours), low at 0. |
-| SMS (Telnyx) | `ALERTER_TELNYX_API_KEY`, `ALERTER_SMS_FROM`, `ALERTER_SMS_TO` (E.164, e.g. `+15551234567`) | Subject line and description, up to 300 characters. |
+| Pushover | `ALERTER_PUSHOVER_TOKEN` (application token), `ALERTER_PUSHOVER_DEST` (user or group keys); optional `ALERTER_PUSHOVER_HIGH` and `ALERTER_PUSHOVER_LOW` | The Pushover priority (-2 to 2) for high and low alerts; defaults 1 (bypasses quiet hours) and 0. Set `ALERTER_PUSHOVER_HIGH=0` to never be woken. Priority 2 (emergency) repeats every 60 seconds until acknowledged, for up to an hour. |
+| SMS (Telnyx) | `ALERTER_TELNYX_API_KEY`, `ALERTER_SMS_FROM`, `ALERTER_SMS_TO` (E.164, e.g. `+15551234567`) | Title and description, then the priority line; up to 300 characters. |
 | Mail (SMTP) | `ALERTER_SMTP_HOST`, `ALERTER_SMTP_FROM`, `ALERTER_SMTP_TO`; optional `ALERTER_SMTP_PORT` (default 587), `ALERTER_SMTP_USER` with `ALERTER_SMTP_PASSWORD` | Port 465 is implicit TLS; any other port must offer STARTTLS, so neither the alert nor the credentials cross the network in clear. A loopback host (a local relay) may run without TLS. |
 | Webhook | `ALERTER_WEBHOOK_URL` (http or https); optional `ALERTER_WEBHOOK_HEADERS`, a JSON object of extra headers, e.g. `{"Authorization":"Bearer x"}` | One JSON `POST` per alert (below); any 2xx is success. Redirects are not followed. |
 
@@ -81,10 +81,16 @@ place to change its shape):
  "description":"claude-cli returned 401","details":"run `claude login` on the host",
  "event_id":"claude-cli","app":"ClawEh","instance":"empire",
  "time":"2026-09-24T10:00:00-04:00","repeats":0,
- "subject":"HIGH ClawEh@empire: Provider authentication failed"}
+ "subject":"Provider authentication failed (ClawEh@empire)"}
 ```
 
 `details`, `event_id`, `app` and `instance` are omitted when empty.
+
+Messages lead with what happened. The subject (the mail subject, the
+Pushover title) is the title and source, `Provider authentication failed
+(ClawEh@empire)`; the text starts with the description, followed by
+`Priority alert from ClawEh@empire` or `Normal alert from ClawEh@empire`,
+the event id, time, repeat count and details.
 
 Every channel receives every alert that passes repeat suppression. The
 channels are sent to in parallel, each bounded by a 30-second timeout, so a

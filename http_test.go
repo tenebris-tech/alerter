@@ -68,7 +68,7 @@ func serve(t *testing.T, f *fakeAPI, endpoint *string) {
 func TestPushoverSend(t *testing.T) {
 	f := &fakeAPI{reply: `{"status":1}`}
 	serve(t, f, &pushoverURL)
-	p := &pushoverSink{token: "apptoken", dests: []string{"user1", "user2"}, http: &http.Client{}}
+	p := &pushoverSink{token: "apptoken", dests: []string{"user1", "user2"}, high: 1, low: 0, http: &http.Client{}}
 	if err := p.send(context.Background(), sample); err != nil {
 		t.Fatalf("send: %v", err)
 	}
@@ -101,7 +101,7 @@ func TestPushoverSend(t *testing.T) {
 func TestPushoverLowPriorityAndLimits(t *testing.T) {
 	f := &fakeAPI{}
 	serve(t, f, &pushoverURL)
-	p := &pushoverSink{token: "t", dests: []string{"u"}, http: &http.Client{}}
+	p := &pushoverSink{token: "t", dests: []string{"u"}, high: 1, low: 0, http: &http.Client{}}
 	a := Alert{Title: strings.Repeat("T", 400), Details: strings.Repeat("d", 2000), Time: sample.Time}
 	if err := p.send(context.Background(), a); err != nil {
 		t.Fatal(err)
@@ -121,7 +121,7 @@ func TestPushoverLowPriorityAndLimits(t *testing.T) {
 func TestPushoverErrors(t *testing.T) {
 	f := &fakeAPI{status: http.StatusBadRequest, reply: `{"user":"invalid","status":0}`}
 	serve(t, f, &pushoverURL)
-	p := &pushoverSink{token: "t", dests: []string{"bad1", "bad2"}, http: &http.Client{}}
+	p := &pushoverSink{token: "t", dests: []string{"bad1", "bad2"}, high: 1, low: 0, http: &http.Client{}}
 	err := p.send(context.Background(), sample)
 	if err == nil || !strings.Contains(err.Error(), "status 400") || !strings.Contains(err.Error(), `"user":"invalid"`) {
 		t.Errorf("error = %v", err)
@@ -191,7 +191,7 @@ func TestSMSErrors(t *testing.T) {
 func TestHTTPSinkHonoursContext(t *testing.T) {
 	f := &fakeAPI{delay: 5 * time.Second}
 	serve(t, f, &pushoverURL)
-	p := &pushoverSink{token: "t", dests: []string{"u"}, http: &http.Client{}}
+	p := &pushoverSink{token: "t", dests: []string{"u"}, high: 1, low: 0, http: &http.Client{}}
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 	start := time.Now()

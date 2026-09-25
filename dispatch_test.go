@@ -62,7 +62,7 @@ func TestDeliversToEveryChannel(t *testing.T) {
 	if hook.requests[0].Header.Get("Authorization") != "Bearer hook" || !strings.Contains(hook.bodies[0], `"title":"Provider authentication failed"`) {
 		t.Errorf("webhook request %v %s", hook.requests[0].Header, hook.bodies[0])
 	}
-	if _, rcpts, data, _, _ := mail.got(); len(rcpts) != 1 || !strings.Contains(data, "Subject: HIGH Claw@empire: Provider authentication failed") {
+	if _, rcpts, data, _, _ := mail.got(); len(rcpts) != 1 || !strings.Contains(data, "Subject: Provider authentication failed (Claw@empire)") {
 		t.Errorf("mail rcpts %v data %q", rcpts, data)
 	}
 	if !strings.Contains(log, "HIGH Claw@empire Provider authentication failed") || strings.Contains(log, "ERROR") {
