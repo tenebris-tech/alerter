@@ -115,11 +115,47 @@ func (s *smtpSink) message(a Alert) []byte {
 	// Quoted-printable keeps every line short and 7-bit whatever the details
 	// hold. Line ends are normalised first so a stray CR cannot end a line
 	// early on the wire.
-	text := strings.ReplaceAll(strings.ReplaceAll(body(a), "\r\n", "\n"), "\r", "\n")
+	text := strings.ReplaceAll(strings.ReplaceAll(mailBody(a), "\r\n", "\n"), "\r", "\n")
 	qp := quotedprintable.NewWriter(&b)
 	_, _ = qp.Write([]byte(strings.ReplaceAll(text, "\n", "\r\n")))
 	_ = qp.Close()
 	return []byte(b.String())
+}
+
+// mailBody is the fuller text mail carries: the message, then one labelled
+// line per particular, then the details.
+//
+//	claude-cli returned 401
+//
+//	Source: ClawEh@empire
+//	Priority: Priority
+//	Date: Thu, 24 Sep 2026 10:00:00 -0400
+//	Event: claude-cli
+//	Repeats: 3 suppressed since the last one
+//
+//	run `claude login` on the host
+func mailBody(a Alert) string {
+	var b strings.Builder
+	msg := a.Description
+	if msg == "" {
+		msg = a.Title
+	}
+	b.WriteString(msg + "\n\n")
+	if src := source(a); src != "" {
+		fmt.Fprintf(&b, "Source: %s\n", src)
+	}
+	fmt.Fprintf(&b, "Priority: %s\n", priorityName(a.Priority))
+	fmt.Fprintf(&b, "Date: %s\n", a.Time.Format(time.RFC1123Z))
+	if a.EventID != "" {
+		fmt.Fprintf(&b, "Event: %s\n", a.EventID)
+	}
+	if a.Repeats > 0 {
+		fmt.Fprintf(&b, "Repeats: %d suppressed since the last one\n", a.Repeats)
+	}
+	if a.Details != "" {
+		b.WriteString("\n" + strings.TrimRight(a.Details, "\n") + "\n")
+	}
+	return b.String()
 }
 
 func (s *smtpSink) send(ctx context.Context, a Alert) error {

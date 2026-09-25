@@ -258,8 +258,12 @@ func TestSMTPMessage(t *testing.T) {
 	if !strings.HasSuffix(head, "\r\nContent-Transfer-Encoding: quoted-printable") {
 		t.Errorf("not quoted-printable:\n%s", head)
 	}
-	if got := decodeQP(t, text); got != strings.ReplaceAll(body(sample), "\n", "\r\n") {
-		t.Errorf("body = %q", got)
+	want := "claude-cli returned 401\r\n\r\n" +
+		"Source: ClawEh@empire\r\nPriority: Priority\r\nDate: Thu, 24 Sep 2026 10:00:00 -0400\r\n" +
+		"Event: claude-cli\r\nRepeats: 3 suppressed since the last one\r\n\r\n" +
+		"run `claude login`\r\non the host\r\n"
+	if got := decodeQP(t, text); got != want {
+		t.Errorf("body =\n%q\nwant\n%q", got, want)
 	}
 	if strings.Contains(strings.ReplaceAll(msg, "\r\n", ""), "\n") {
 		t.Error("bare LF in message")
@@ -470,5 +474,47 @@ func TestSMTPPriorityHeaders(t *testing.T) {
 		if marked != tc.marked || (!tc.marked && (strings.Contains(head, "X-Priority") || strings.Contains(head, "Importance"))) {
 			t.Errorf("level %d: priority headers %v, want %v", tc.level, marked, tc.marked)
 		}
+	}
+}
+
+func TestMailBody(t *testing.T) {
+	at := sample.Time
+	cases := []struct {
+		name string
+		a    Alert
+		want string
+	}{
+		{"minimal: title stands in for the message", Alert{Title: "Disk full", Time: at},
+			"Disk full\n\nPriority: Normal\nDate: Thu, 24 Sep 2026 10:00:00 -0400\n"},
+		{"emergency with source", Alert{Priority: Emergency, Title: "t", Description: "d", App: "A", Instance: "i", Time: at},
+			"d\n\nSource: A@i\nPriority: Emergency\nDate: Thu, 24 Sep 2026 10:00:00 -0400\n"},
+		{"out of range level", Alert{Priority: 9, Title: "t", Description: "d", Time: at},
+			"d\n\nPriority: Normal\nDate: Thu, 24 Sep 2026 10:00:00 -0400\n"},
+		{"event and details", Alert{Priority: Priority, Title: "t", Description: "d", EventID: "e", Details: "x\ny\n\n", Time: at},
+			"d\n\nPriority: Priority\nDate: Thu, 24 Sep 2026 10:00:00 -0400\nEvent: e\n\nx\ny\n"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := mailBody(tc.a); got != tc.want {
+				t.Errorf("mailBody =\n%q\nwant\n%q", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestMailIsFullerThanPushover: mail carries the labelled particulars;
+// Pushover keeps the short body.
+func TestMailIsFullerThanPushover(t *testing.T) {
+	msg := string(newSMTPSink("h", 25, "", "").message(sample))
+	_, text, _ := strings.Cut(msg, "\r\n\r\n")
+	mail := decodeQP(t, text)
+	for _, want := range []string{"\r\nSource: ClawEh@empire\r\n", "\r\nPriority: Priority\r\n", "\r\nDate: "} {
+		if !strings.Contains(mail, want) {
+			t.Errorf("mail lacks %q", want)
+		}
+	}
+	push := pushoverForm(t, sample)
+	if strings.Contains(push, "Source:") || strings.Contains(push, "Date:") || !strings.Contains(push, "\nPriority alert\n") {
+		t.Errorf("pushover text changed: %q", push)
 	}
 }

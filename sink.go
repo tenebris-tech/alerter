@@ -157,8 +157,8 @@ func subject(a Alert) string {
 	return strings.Join(strings.Fields(s), " ")
 }
 
-// body is the message text for channels that carry more than a line, sent
-// under subject: the description first, then the level ("Priority alert")
+// body is the message text Pushover carries under its title (mail uses the
+// fuller mailBody): the description first, then the level ("Priority alert")
 // and particulars. The source is in the subject, so it is not repeated.
 func body(a Alert) string {
 	var b strings.Builder

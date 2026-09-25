@@ -94,9 +94,26 @@ empty.
 
 Messages lead with what happened. The subject (the mail subject, the
 Pushover title) is the title and source, `Provider authentication failed
-(ClawEh@empire)`; the text starts with the description, followed by the
-level (`Normal alert`, `Priority alert` or `Emergency alert`), the event id,
-time, repeat count and details. The source is stated once, in the subject.
+(ClawEh@empire)`.
+
+Mail carries the fullest text: the description (or the title, when there is
+none), then labelled lines, then the details:
+
+```
+claude-cli returned 401
+
+Source: ClawEh@empire
+Priority: Priority
+Date: Thu, 24 Sep 2026 10:00:00 -0400
+Event: claude-cli
+Repeats: 3 suppressed since the last one
+
+run `claude login` on the host
+```
+
+A Pushover message is shorter: the description, then the level (`Normal
+alert`, `Priority alert` or `Emergency alert`), the event id, time, repeat
+count and details, with the source stated once, in the title.
 An SMS has no subject, so it reads `Title: description` and then, for
 example, `Priority alert from ClawEh@empire`.
 
