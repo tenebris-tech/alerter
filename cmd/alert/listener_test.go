@@ -15,7 +15,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/tenebris-tech/alerter"
 )
@@ -111,7 +110,7 @@ func TestWebhookEndToEnd(t *testing.T) {
 		t.Fatalf("listenWebhook: %v", err)
 	}
 	defer l.close()
-	send(al, time.Now())
+	send(al)
 	if err := al.Close(context.Background()); err != nil {
 		t.Fatal(err)
 	}

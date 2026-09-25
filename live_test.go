@@ -46,8 +46,7 @@ func TestLive(t *testing.T) {
 	if len(names) == 0 {
 		t.Fatal("no channel configured in ~/.alerter")
 	}
-	d.Priority("Live delivery test", "alerter sent this to check its delivery channels; no action needed",
-		"sent at "+time.Now().Format(time.RFC3339))
+	d.Priority("Live delivery test", "alerter sent this to check its delivery channels; no action needed")
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	if err := d.Close(ctx); err != nil {

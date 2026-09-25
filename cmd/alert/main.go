@@ -45,7 +45,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	send(al, time.Now())
+	send(al)
 
 	ctx, cancel := context.WithTimeout(context.Background(), closeTimeout)
 	defer cancel()
@@ -75,9 +75,8 @@ const testAlerts = 3
 
 // send raises one test alert at each level. Their titles differ, so repeat
 // suppression never holds one back.
-func send(al alerter.Alerter, now time.Time) {
-	stamp := "sent at " + now.Format(time.RFC3339)
-	al.Normal("Normal test alert", "alert sent this to test Normal delivery; no action needed", stamp)
-	al.Priority("Priority test alert", "alert sent this to test Priority delivery; no action needed", stamp)
-	al.Emergency("Emergency test alert", "alert sent this to test Emergency delivery; no action needed", stamp)
+func send(al alerter.Alerter) {
+	al.Normal("Normal test alert", "alert sent this to test Normal delivery; no action needed")
+	al.Priority("Priority test alert", "alert sent this to test Priority delivery; no action needed")
+	al.Emergency("Emergency test alert", "alert sent this to test Emergency delivery; no action needed")
 }

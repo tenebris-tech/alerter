@@ -9,7 +9,6 @@ import (
 	"context"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/tenebris-tech/alerter"
 )
@@ -31,7 +30,7 @@ func (r *recorder) Close(context.Context) error { return nil }
 
 func TestSendRaisesOnePerLevel(t *testing.T) {
 	r := &recorder{}
-	send(r, time.Date(2026, 9, 24, 10, 0, 0, 0, time.UTC))
+	send(r)
 	if len(r.alerts) != testAlerts || testAlerts != 3 {
 		t.Fatalf("alerts = %d (testAlerts %d), want 3", len(r.alerts), testAlerts)
 	}
@@ -41,8 +40,8 @@ func TestSendRaisesOnePerLevel(t *testing.T) {
 		if a.Priority != want {
 			t.Errorf("alert %d priority = %d, want %d", i, a.Priority, want)
 		}
-		if a.Details != "sent at 2026-09-24T10:00:00Z" {
-			t.Errorf("details = %q", a.Details)
+		if a.Details != "" {
+			t.Errorf("details = %q; every service shows when a message arrived", a.Details)
 		}
 		titles[a.Title] = true
 	}
