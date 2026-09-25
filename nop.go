@@ -14,11 +14,14 @@ type Nop struct{}
 // Send discards the alert.
 func (Nop) Send(Alert) {}
 
-// High discards the alert.
-func (Nop) High(string, string, ...string) {}
+// Normal discards the alert.
+func (Nop) Normal(string, string, ...string) {}
 
-// Low discards the alert.
-func (Nop) Low(string, string, ...string) {}
+// Priority discards the alert.
+func (Nop) Priority(string, string, ...string) {}
+
+// Emergency discards the alert.
+func (Nop) Emergency(string, string, ...string) {}
 
 // Close does nothing.
 func (Nop) Close(context.Context) error { return nil }

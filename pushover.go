@@ -25,11 +25,10 @@ const (
 	pushoverMessageMax = 1024
 )
 
-// Default priorities: 1 bypasses the recipient's quiet hours, 0 does not.
-const (
-	defaultPushoverHigh = 1
-	defaultPushoverLow  = 0
-)
+// pushoverDefaults are the Pushover priorities for Normal, Priority and
+// Emergency alerts when the environment does not set them: 1 bypasses the
+// recipient's quiet hours, 2 also repeats until acknowledged.
+var pushoverDefaults = [3]int{0, 1, 2}
 
 // Emergency (priority 2) messages repeat until acknowledged; Pushover
 // requires the interval and the give-up time, in seconds.
@@ -39,16 +38,17 @@ const (
 )
 
 // pushoverSink sends one Pushover message per destination key, at the
-// priority configured for high or low alerts (-2 lowest to 2 emergency).
+// Pushover priority (-2 lowest to 2 emergency) configured for the alert's
+// level.
 type pushoverSink struct {
-	token     string
-	dests     []string
-	high, low int
-	http      *http.Client
+	token string
+	dests []string
+	prio  [3]int // indexed by alert level
+	http  *http.Client
 }
 
 func pushoverFromEnv() (sink, error) {
-	if !anySet(EnvPushoverToken, EnvPushoverDest, EnvPushoverHigh, EnvPushoverLow) {
+	if !anySet(EnvPushoverToken, EnvPushoverDest, EnvPushoverNormal, EnvPushoverPriority, EnvPushoverEmergency) {
 		return nil, nil
 	}
 	if err := require("pushover", EnvPushoverToken, EnvPushoverDest); err != nil {
@@ -58,12 +58,12 @@ func pushoverFromEnv() (sink, error) {
 	if len(p.dests) == 0 {
 		return nil, fmt.Errorf("alerter: pushover: %s has no key", EnvPushoverDest)
 	}
-	var err error
-	if p.high, err = pushoverPriority(EnvPushoverHigh, defaultPushoverHigh); err != nil {
-		return nil, err
-	}
-	if p.low, err = pushoverPriority(EnvPushoverLow, defaultPushoverLow); err != nil {
-		return nil, err
+	for lvl, key := range []string{EnvPushoverNormal, EnvPushoverPriority, EnvPushoverEmergency} {
+		n, err := pushoverPriority(key, pushoverDefaults[lvl])
+		if err != nil {
+			return nil, err
+		}
+		p.prio[lvl] = n
 	}
 	return p, nil
 }
@@ -95,10 +95,7 @@ func (p *pushoverSink) send(ctx context.Context, a Alert) error {
 }
 
 func (p *pushoverSink) sendOne(ctx context.Context, a Alert, dest string) error {
-	prio := p.low
-	if a.High {
-		prio = p.high
-	}
+	prio := p.prio[level(a.Priority)]
 	form := url.Values{}
 	form.Set("token", p.token)
 	form.Set("user", dest)

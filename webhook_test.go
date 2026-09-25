@@ -66,7 +66,7 @@ func TestWebhookPayload(t *testing.T) {
 		t.Fatalf("payload is not JSON: %v", err)
 	}
 	want := map[string]any{
-		"priority": "high", "high": true,
+		"priority": float64(1), "priority_name": "priority",
 		"title": "Provider authentication failed", "description": "claude-cli returned 401",
 		"details": "run `claude login`\non the host\n", "event_id": "claude-cli",
 		"app": "ClawEh", "instance": "empire", "time": "2026-09-24T10:00:00-04:00",
@@ -81,13 +81,13 @@ func TestWebhookPayload(t *testing.T) {
 		}
 	}
 
-	var low map[string]any
-	_ = json.Unmarshal([]byte(webhookPayload(Alert{Title: "t", Time: sample.Time})), &low)
-	if low["priority"] != "low" || low["high"] != false || low["repeats"] != float64(0) {
-		t.Errorf("low payload = %v", low)
+	var normal map[string]any
+	_ = json.Unmarshal([]byte(webhookPayload(Alert{Title: "t", Time: sample.Time})), &normal)
+	if normal["priority"] != float64(0) || normal["priority_name"] != "normal" || normal["repeats"] != float64(0) {
+		t.Errorf("normal payload = %v", normal)
 	}
 	for _, k := range []string{"details", "event_id", "app", "instance"} {
-		if _, ok := low[k]; ok {
+		if _, ok := normal[k]; ok {
 			t.Errorf("empty %s should be omitted", k)
 		}
 	}
@@ -160,6 +160,28 @@ func TestValidHeaderName(t *testing.T) {
 	} {
 		if validHeaderName(s) != want {
 			t.Errorf("validHeaderName(%q) = %v", s, !want)
+		}
+	}
+}
+
+func TestWebhookPayloadLevels(t *testing.T) {
+	for _, tc := range []struct {
+		in   int
+		num  float64
+		name string
+	}{
+		{Normal, 0, "normal"}, {Priority, 1, "priority"}, {Emergency, 2, "emergency"},
+		{-1, 0, "normal"}, {3, 0, "normal"},
+	} {
+		var p map[string]any
+		if err := json.Unmarshal([]byte(webhookPayload(Alert{Priority: tc.in, Title: "t"})), &p); err != nil {
+			t.Fatal(err)
+		}
+		if p["priority"] != tc.num || p["priority_name"] != tc.name {
+			t.Errorf("level %d: priority %v %v, want %v %s", tc.in, p["priority"], p["priority_name"], tc.num, tc.name)
+		}
+		if _, ok := p["high"]; ok {
+			t.Error("payload still has the removed high field")
 		}
 	}
 }

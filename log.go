@@ -40,11 +40,7 @@ func openLog(path string) (*logWriter, error) {
 func format(a Alert) string {
 	var b strings.Builder
 	b.WriteString(a.Time.Format(time.RFC3339))
-	if a.High {
-		b.WriteString(" HIGH ")
-	} else {
-		b.WriteString(" LOW  ")
-	}
+	fmt.Fprintf(&b, " %-9s ", strings.ToUpper(priorityName(a.Priority)))
 	switch {
 	case a.App != "" && a.Instance != "":
 		b.WriteString(a.App + "@" + a.Instance + " ")

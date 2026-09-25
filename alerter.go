@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -34,19 +35,52 @@ const (
 	// before Send starts dropping.
 	DefaultQueueSize = 256
 	// DefaultSuppressWindow is how long a repeat of an alert (same Title, or
-	// same Title and EventID) is held back after one was sent.
+	// same Title and EventID) at the same level is held back after one was
+	// sent.
 	DefaultSuppressWindow = 10 * time.Minute
 	// EnvLogFile names the environment variable consulted for the log path
 	// when WithLogFile is not used.
 	EnvLogFile = "ALERTER_LOG"
 )
 
-// Alert is one notification. The caller fills High, Title, Description and,
-// optionally, Details and EventID; the alerter stamps the rest.
+// Priority levels for Alert.Priority.
+const (
+	// Normal is degraded but working: someone should look when convenient.
+	Normal = 0
+	// Priority stops the application doing part of its job and needs a
+	// person soon.
+	Priority = 1
+	// Emergency needs a person now.
+	Emergency = 2
+)
+
+// level returns p when it is a priority level and Normal otherwise.
+func level(p int) int {
+	if p < Normal || p > Emergency {
+		return Normal
+	}
+	return p
+}
+
+// priorityName is "Normal", "Priority" or "Emergency". Out-of-range values
+// are Normal, as Send treats them.
+func priorityName(p int) string {
+	switch level(p) {
+	case Priority:
+		return "Priority"
+	case Emergency:
+		return "Emergency"
+	}
+	return "Normal"
+}
+
+// Alert is one notification. The caller fills Priority, Title, Description
+// and, optionally, Details and EventID; the alerter stamps the rest.
 type Alert struct {
-	// High marks a high-priority alert: something that stops the application
-	// doing its job. Low priority (false) is degraded but working.
-	High bool
+	// Priority is Normal (0), Priority (1) or Emergency (2). Any other value
+	// is treated as Normal. How each level is delivered (for example the
+	// Pushover priority) is the operator's choice, not the caller's.
+	Priority int
 	// Title is the short, stable statement of the condition. It is the
 	// de-duplication key, so repeats should use the same title.
 	Title string
@@ -71,21 +105,26 @@ type Alert struct {
 	Repeats int
 }
 
-// key is the de-duplication key: title alone, or title and event id.
+// key is the de-duplication key: level and title, plus the event id when
+// set. The level is part of it so an escalation (the same condition raised
+// again at a higher level) is never held back as a repeat.
 func (a Alert) key() string {
-	if a.EventID == "" {
-		return a.Title
+	k := strconv.Itoa(level(a.Priority)) + "\x00" + a.Title
+	if a.EventID != "" {
+		k += "\x00" + a.EventID
 	}
-	return a.Title + "\x00" + a.EventID
+	return k
 }
 
 // Alerter is what application packages receive. Send never blocks the caller
-// beyond an enqueue and never panics; High and Low are shorthands for Send.
-// Close delivers what is queued, within ctx, then stops.
+// beyond an enqueue and never panics; Normal, Priority and Emergency are
+// shorthands for Send at that level. Close delivers what is queued, within
+// ctx, then stops.
 type Alerter interface {
 	Send(a Alert)
-	High(title, description string, details ...string)
-	Low(title, description string, details ...string)
+	Normal(title, description string, details ...string)
+	Priority(title, description string, details ...string)
+	Emergency(title, description string, details ...string)
 	Close(ctx context.Context) error
 }
 
@@ -252,6 +291,7 @@ func New(opts ...Option) (*Dispatcher, error) {
 // Send queues a for delivery. It returns at once; a full queue or a closed
 // alerter drops the alert and counts it.
 func (d *Dispatcher) Send(a Alert) {
+	a.Priority = level(a.Priority)
 	a.Time = d.now()
 	a.App = d.app
 	a.Instance = d.instance
@@ -270,15 +310,23 @@ func (d *Dispatcher) Send(a Alert) {
 	}
 }
 
-// High sends a high-priority alert. Details, when given, are joined with
-// newlines.
-func (d *Dispatcher) High(title, description string, details ...string) {
-	d.Send(Alert{High: true, Title: title, Description: description, Details: strings.Join(details, "\n")})
+// Normal sends a Normal alert. Details, when given, are joined with newlines.
+func (d *Dispatcher) Normal(title, description string, details ...string) {
+	d.sendAt(Normal, title, description, details)
 }
 
-// Low sends a low-priority alert.
-func (d *Dispatcher) Low(title, description string, details ...string) {
-	d.Send(Alert{Title: title, Description: description, Details: strings.Join(details, "\n")})
+// Priority sends a Priority alert.
+func (d *Dispatcher) Priority(title, description string, details ...string) {
+	d.sendAt(Priority, title, description, details)
+}
+
+// Emergency sends an Emergency alert.
+func (d *Dispatcher) Emergency(title, description string, details ...string) {
+	d.sendAt(Emergency, title, description, details)
+}
+
+func (d *Dispatcher) sendAt(p int, title, description string, details []string) {
+	d.Send(Alert{Priority: p, Title: title, Description: description, Details: strings.Join(details, "\n")})
 }
 
 // Close stops accepting alerts, delivers what is already queued, and closes

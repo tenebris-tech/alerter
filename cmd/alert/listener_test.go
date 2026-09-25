@@ -115,20 +115,20 @@ func TestWebhookEndToEnd(t *testing.T) {
 	if err := al.Close(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if s := al.Stats(); s.Sent != 2 || s.Failed != 0 {
+	if s := al.Stats(); s.Sent != 3 || s.Failed != 0 {
 		t.Errorf("stats = %+v", s)
 	}
 	got := l.requests()
-	if len(got) != 2 {
-		t.Fatalf("webhook requests = %d, want 2", len(got))
+	if len(got) != 3 {
+		t.Fatalf("webhook requests = %d, want 3", len(got))
 	}
-	for i, wantHigh := range []bool{true, false} {
+	for i, wantName := range []string{"normal", "priority", "emergency"} {
 		var p map[string]any
 		if err := json.Unmarshal([]byte(got[i].body), &p); err != nil {
 			t.Fatalf("body %d not JSON: %v", i, err)
 		}
-		if p["high"] != wantHigh || got[i].header.Get("Authorization") != "Bearer test" {
-			t.Errorf("request %d: high=%v auth=%q", i, p["high"], got[i].header.Get("Authorization"))
+		if p["priority"] != float64(i) || p["priority_name"] != wantName || got[i].header.Get("Authorization") != "Bearer test" {
+			t.Errorf("request %d: priority=%v %v auth=%q", i, p["priority"], p["priority_name"], got[i].header.Get("Authorization"))
 		}
 	}
 }

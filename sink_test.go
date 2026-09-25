@@ -6,7 +6,11 @@
 package alerter
 
 import (
+	"context"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -173,7 +177,7 @@ func TestAllChannelErrorsReported(t *testing.T) {
 }
 
 var sample = Alert{
-	High: true, Title: "Provider authentication failed", Description: "claude-cli returned 401",
+	Priority: Priority, Title: "Provider authentication failed", Description: "claude-cli returned 401",
 	Details: "run `claude login`\non the host\n", EventID: "claude-cli",
 	Time: time.Date(2026, 9, 24, 10, 0, 0, 0, time.FixedZone("EDT", -4*3600)),
 	App:  "ClawEh", Instance: "empire", Repeats: 3,
@@ -187,7 +191,7 @@ func TestSubject(t *testing.T) {
 		"x (ClawEh)":      {Title: "x", App: "ClawEh"},
 		"x (@empire)":     {Title: "x", Instance: "empire"},
 		"x":               {Title: "x"},
-		"line1 line2 (a)": {High: true, App: "a", Title: "line1\r\nline2 "},
+		"line1 line2 (a)": {Priority: Priority, App: "a", Title: "line1\r\nline2 "},
 	}
 	for want, a := range cases {
 		if got := subject(a); got != strings.TrimSpace(want) {
@@ -237,6 +241,75 @@ func TestValidE164(t *testing.T) {
 	} {
 		if got := validE164(s); got != want {
 			t.Errorf("validE164(%q) = %v", s, got)
+		}
+	}
+}
+
+func TestPriorityLineLevels(t *testing.T) {
+	for _, tc := range []struct {
+		a    Alert
+		want string
+	}{
+		{Alert{Priority: Normal, App: "A", Instance: "i"}, "Normal alert from A@i"},
+		{Alert{Priority: Priority, App: "A"}, "Priority alert from A"},
+		{Alert{Priority: Emergency}, "Emergency alert"},
+		{Alert{Priority: 5, Instance: "i"}, "Normal alert from @i"},
+	} {
+		if got := priorityLine(tc.a); got != tc.want {
+			t.Errorf("priorityLine(%d) = %q, want %q", tc.a.Priority, got, tc.want)
+		}
+	}
+}
+
+// highLow matches the words high and low, not "slow" or "below".
+var highLow = regexp.MustCompile(`(?i)\b(high|low)\b`)
+
+// pushoverForm is the title and message Pushover would receive for a.
+func pushoverForm(t *testing.T, a Alert) string {
+	t.Helper()
+	f := &fakeAPI{}
+	srv := httptest.NewServer(f)
+	defer srv.Close()
+	old := pushoverURL
+	pushoverURL = srv.URL
+	defer func() { pushoverURL = old }()
+	p := &pushoverSink{token: "t", dests: []string{"u"}, prio: pushoverDefaults, http: newHTTPClient()}
+	if err := p.send(context.Background(), a); err != nil {
+		t.Fatal(err)
+	}
+	form, _ := url.ParseQuery(f.bodies[0])
+	return form.Get("title") + "\n" + form.Get("message")
+}
+
+func TestHighLowPattern(t *testing.T) {
+	for s, want := range map[string]bool{"HIGH": true, "a low one": true, "slow": false, "below": false, "highway": false} {
+		if highLow.MatchString(s) != want {
+			t.Errorf("%q: %v", s, !want)
+		}
+	}
+}
+
+func TestTextNeverSaysHighOrLow(t *testing.T) {
+	for _, p := range []int{Normal, Priority, Emergency} {
+		a := Alert{Priority: p, Title: "Disk full", Description: "backup stopped", App: "A", Time: sample.Time}
+		mail := string(newSMTPSink("h", 25, "", "").message(a))
+		_, mailBody, _ := strings.Cut(mail, "\r\n\r\n")
+		for name, text := range map[string]string{
+			"subject": subject(a), "body": body(a), "sms": smsText(a), "webhook": webhookPayload(a),
+			"mail body": mailBody, "pushover": pushoverForm(t, a),
+		} {
+			if highLow.MatchString(text) {
+				t.Errorf("level %d %s says high or low: %q", p, name, text)
+			}
+			if (name == "subject" || name == "sms") && !strings.HasPrefix(text, "Disk full") {
+				t.Errorf("level %d %s does not lead with the title: %q", p, name, text)
+			}
+		}
+		if !strings.HasPrefix(body(a), "backup stopped\n") {
+			t.Errorf("body does not lead with the description: %q", body(a))
+		}
+		if !strings.Contains(smsText(a), "\n"+priorityName(p)+" alert from A") {
+			t.Errorf("sms lacks the level: %q", smsText(a))
 		}
 	}
 }

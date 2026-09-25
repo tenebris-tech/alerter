@@ -53,7 +53,7 @@ func TestDeliversToEveryChannel(t *testing.T) {
 	if len(d.sinks) != 4 {
 		t.Fatalf("channels = %d, want 4", len(d.sinks))
 	}
-	d.High("Provider authentication failed", "claude-cli returned 401")
+	d.Priority("Provider authentication failed", "claude-cli returned 401")
 	log := closeAndRead(t, d, path)
 
 	if push.count() != 1 || sms.count() != 1 || hook.count() != 1 {
@@ -65,7 +65,7 @@ func TestDeliversToEveryChannel(t *testing.T) {
 	if _, rcpts, data, _, _ := mail.got(); len(rcpts) != 1 || !strings.Contains(data, "Subject: Provider authentication failed (Claw@empire)") {
 		t.Errorf("mail rcpts %v data %q", rcpts, data)
 	}
-	if !strings.Contains(log, "HIGH Claw@empire Provider authentication failed") || strings.Contains(log, "ERROR") {
+	if !strings.Contains(log, "PRIORITY  Claw@empire Provider authentication failed") || strings.Contains(log, "ERROR") {
 		t.Errorf("log = %q", log)
 	}
 	if s := d.Stats(); s.Sent != 1 || s.Failed != 0 {
@@ -78,10 +78,10 @@ func TestSuppressedRepeatsReachNoChannel(t *testing.T) {
 	push, sms := f.push, f.sms
 	d, path, clk := newTest(t)
 	for range 3 {
-		d.Low("MCP server unreachable", "fusion", "")
+		d.Normal("MCP server unreachable", "fusion", "")
 	}
 	clk.advance(DefaultSuppressWindow)
-	d.Low("MCP server unreachable", "fusion", "")
+	d.Normal("MCP server unreachable", "fusion", "")
 	closeAndRead(t, d, path)
 	if push.count() != 2 || sms.count() != 2 {
 		t.Errorf("pushover %d, sms %d; want 2 each (first, then after the window)", push.count(), sms.count())
@@ -95,7 +95,7 @@ func TestChannelFailureLoggedOthersStillDelivered(t *testing.T) {
 	f := channels(t, func(f *fakes) { f.push.status, f.push.reply = http.StatusBadRequest, `{"token":"invalid"}` })
 	sms, mail := f.sms, f.mail
 	d, path, _ := newTest(t)
-	d.Send(Alert{High: true, Title: "Config file invalid", EventID: "config"})
+	d.Send(Alert{Priority: Priority, Title: "Config file invalid", EventID: "config"})
 	log := closeAndRead(t, d, path)
 
 	if sms.count() != 1 {
@@ -119,7 +119,7 @@ func TestEveryChannelFailureLogged(t *testing.T) {
 		f.push.status, f.sms.status, f.hook.status, f.mail.rejectRcpt = 500, 500, 500, "ops@"
 	})
 	d, path, _ := newTest(t)
-	d.Low("x", "y")
+	d.Normal("x", "y")
 	log := closeAndRead(t, d, path)
 	for _, ch := range []string{"pushover", "sms", "smtp", "webhook"} {
 		if !strings.Contains(log, "ERROR alerter: "+ch+" delivery failed: x\n") {
@@ -139,7 +139,7 @@ func TestHungChannelBoundedByTimeout(t *testing.T) {
 	sms := f.sms
 	d, path, _ := newTest(t)
 	start := time.Now()
-	d.High("a", "b")
+	d.Priority("a", "b")
 	log := closeAndRead(t, d, path)
 	if time.Since(start) > 5*time.Second {
 		t.Error("a hung channel held up delivery")
@@ -158,7 +158,7 @@ func TestChannelsDeliveredInParallel(t *testing.T) {
 	})
 	d, path, _ := newTest(t)
 	start := time.Now()
-	d.High("a", "b")
+	d.Priority("a", "b")
 	log := closeAndRead(t, d, path)
 	// Three hung channels in turn would take three timeouts.
 	if el := time.Since(start); el > 2*sinkTimeout {
@@ -175,7 +175,7 @@ func TestLogFailureWithChannelsCounted(t *testing.T) {
 	d.log.mu.Lock()
 	d.log.w = failingWriter{}
 	d.log.mu.Unlock()
-	d.High("x", "y")
+	d.Priority("x", "y")
 	if err := d.Close(context.Background()); err != nil {
 		t.Fatal(err)
 	}

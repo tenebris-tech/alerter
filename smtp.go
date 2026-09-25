@@ -106,7 +106,7 @@ func (s *smtpSink) message(a Alert) []byte {
 	b.WriteString("Subject: " + strings.ReplaceAll(subj, "?= =?", "?=\r\n =?") + "\r\n")
 	b.WriteString("Date: " + a.Time.Format(time.RFC1123Z) + "\r\n")
 	b.WriteString("Message-ID: <" + hex.EncodeToString(id[:]) + "@" + domain + ">\r\n")
-	if a.High {
+	if level(a.Priority) != Normal {
 		b.WriteString("X-Priority: 1\r\nImportance: high\r\n")
 	}
 	b.WriteString("MIME-Version: 1.0\r\n")

@@ -23,8 +23,10 @@ import (
 const (
 	EnvPushoverToken = "ALERTER_PUSHOVER_TOKEN" // application API token
 	EnvPushoverDest  = "ALERTER_PUSHOVER_DEST"  // user or group keys
-	EnvPushoverHigh  = "ALERTER_PUSHOVER_HIGH"  // priority -2..2 for high alerts, default 1
-	EnvPushoverLow   = "ALERTER_PUSHOVER_LOW"   // priority -2..2 for low alerts, default 0
+	// The Pushover priority (-2..2) each alert level is sent at.
+	EnvPushoverNormal    = "ALERTER_PUSHOVER_NORMAL"    // default 0
+	EnvPushoverPriority  = "ALERTER_PUSHOVER_PRIORITY"  // default 1: bypasses quiet hours
+	EnvPushoverEmergency = "ALERTER_PUSHOVER_EMERGENCY" // default 2: repeats until acknowledged
 
 	EnvTelnyxAPIKey = "ALERTER_TELNYX_API_KEY" // Telnyx API v2 key
 	EnvSMSFrom      = "ALERTER_SMS_FROM"       // E.164 sending number
@@ -131,13 +133,10 @@ func source(a Alert) string {
 }
 
 // priorityLine says how urgent the alert is and where it came from:
-// "Priority alert from ClawEh@empire" or "Normal alert from ClawEh@empire".
-// The words avoid high and low, which read like measurements.
+// "Normal alert from ClawEh@empire", "Priority alert from …" or "Emergency
+// alert from …". The words avoid high and low, which read like measurements.
 func priorityLine(a Alert) string {
-	s := "Normal alert"
-	if a.High {
-		s = "Priority alert"
-	}
+	s := priorityName(a.Priority) + " alert"
 	if src := source(a); src != "" {
 		s += " from " + src
 	}

@@ -265,12 +265,12 @@ func TestSMTPMessage(t *testing.T) {
 		t.Error("bare LF in message")
 	}
 
-	low := string(s.message(Alert{Title: "Tëst ünicode", Time: sample.Time}))
-	if strings.Contains(low, "X-Priority") {
-		t.Error("low alert marked high priority")
+	normal := string(s.message(Alert{Title: "Tëst ünicode", Time: sample.Time}))
+	if strings.Contains(normal, "X-Priority") {
+		t.Error("normal alert marked as important")
 	}
-	if !strings.Contains(low, "Subject: =?utf-8?q?") {
-		t.Errorf("non-ASCII subject not encoded:\n%s", low)
+	if !strings.Contains(normal, "Subject: =?utf-8?q?") {
+		t.Errorf("non-ASCII subject not encoded:\n%s", normal)
 	}
 }
 
@@ -456,4 +456,19 @@ func TestSMTPErrors(t *testing.T) {
 			t.Error("expected an error after cancel")
 		}
 	})
+}
+
+func TestSMTPPriorityHeaders(t *testing.T) {
+	s := newSMTPSink("h", 25, "", "")
+	for _, tc := range []struct {
+		level  int
+		marked bool
+	}{{Normal, false}, {Priority, true}, {Emergency, true}, {9, false}} {
+		msg := string(s.message(Alert{Priority: tc.level, Title: "t", Time: sample.Time}))
+		head, _, _ := strings.Cut(msg, "\r\n\r\n")
+		marked := strings.Contains(head, "X-Priority: 1\r\n") && strings.Contains(head, "Importance: high\r\n")
+		if marked != tc.marked || (!tc.marked && (strings.Contains(head, "X-Priority") || strings.Contains(head, "Importance"))) {
+			t.Errorf("level %d: priority headers %v, want %v", tc.level, marked, tc.marked)
+		}
+	}
 }
