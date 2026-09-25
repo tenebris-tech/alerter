@@ -14,7 +14,7 @@ variables.
 
 ```go
 al, err := alerter.New(
-    alerter.WithAppName("ClawEh"),
+    alerter.WithAppName("MyAppName"),
     alerter.WithInstanceName(hostname),          // optional
     alerter.WithLogFile("/var/log/claw/alerts.txt"), // optional, see below
 )
@@ -58,11 +58,6 @@ keep it mode 0600.
 Both file settings expect a full path and file name. The file is created if
 missing and appended to otherwise. One record per alert:
 
-```
-2026-09-24T10:00:00-04:00 URGENT    ClawEh@empire [claude-cli] Provider authentication failed: claude-cli returned 401
-    run `claude login` on the host
-```
-
 The level is written as `NORMAL`, `URGENT` or `EMERGENCY`.
 
 **Channels**, each one on when any of its variables is set. A channel that is
@@ -83,9 +78,9 @@ place to change its shape):
 ```json
 {"priority":1,"priority_name":"urgent","title":"Provider authentication failed",
  "description":"claude-cli returned 401","details":"run `claude login` on the host",
- "event_id":"claude-cli","app":"ClawEh","instance":"empire",
+ "event_id":"claude-cli","app":"MyAppName","instance":"myserver",
  "time":"2026-09-24T10:00:00-04:00","repeats":0,
- "subject":"Provider authentication failed (ClawEh@empire)"}
+ "subject":"Provider authentication failed (MyAppName@myserver)"}
 ```
 
 `priority` is the level, 0 to 2, and `priority_name` is `normal`, `urgent`
@@ -94,7 +89,7 @@ empty.
 
 Messages lead with what happened. The subject (the mail subject, the
 Pushover title) is the title and source, `Provider authentication failed
-(ClawEh@empire)`.
+(MyAppName@myserver)`.
 
 Mail carries the fullest text: the description (or the title, when there is
 none), then labelled lines, then the details:
@@ -102,7 +97,7 @@ none), then labelled lines, then the details:
 ```
 claude-cli returned 401
 
-Source: ClawEh@empire
+Source: MyAppName@myserver
 Priority: Urgent
 Date: Thu, 24 Sep 2026 10:00:00 -0400
 Event: claude-cli
@@ -115,7 +110,7 @@ A Pushover message is shorter: the description, then the level (`Normal
 alert`, `Urgent alert` or `Emergency alert`), the event id, time, repeat
 count and details, with the source stated once, in the title.
 An SMS has no subject, so it reads `Title: description` and then, for
-example, `Urgent alert from ClawEh@empire`.
+example, `Urgent alert from MyAppName@myserver`.
 
 Every channel receives every alert that passes repeat suppression. The
 channels are sent to in parallel, each bounded by a 30-second timeout, so a
