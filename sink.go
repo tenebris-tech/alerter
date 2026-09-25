@@ -157,6 +157,10 @@ func subject(a Alert) string {
 	return strings.Join(strings.Fields(s), " ")
 }
 
+// pushTimeLayout is the time in body, readable at a glance:
+// "2026-09-24 22:23:46 -04:00".
+const pushTimeLayout = "2006-01-02 15:04:05 -07:00"
+
 // body is the message text Pushover carries under its title (mail uses the
 // fuller mailBody): the description first, then the level ("Urgent alert")
 // and particulars. The source is in the subject, so it is not repeated.
@@ -169,7 +173,7 @@ func body(a Alert) string {
 	if a.EventID != "" {
 		fmt.Fprintf(&b, "Event: %s\n", a.EventID)
 	}
-	fmt.Fprintf(&b, "Time: %s\n", a.Time.Format(time.RFC3339))
+	fmt.Fprintf(&b, "Time: %s\n", a.Time.Format(pushTimeLayout))
 	if a.Repeats > 0 {
 		fmt.Fprintf(&b, "Repeats: %d suppressed since the last one\n", a.Repeats)
 	}

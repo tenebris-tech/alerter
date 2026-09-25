@@ -203,13 +203,13 @@ func TestSubject(t *testing.T) {
 func TestBody(t *testing.T) {
 	want := "claude-cli returned 401\n\n" +
 		"Urgent alert\nEvent: claude-cli\n" +
-		"Time: 2026-09-24T10:00:00-04:00\nRepeats: 3 suppressed since the last one\n\n" +
+		"Time: 2026-09-24 10:00:00 -04:00\nRepeats: 3 suppressed since the last one\n\n" +
 		"run `claude login`\non the host\n"
 	if got := body(sample); got != want {
 		t.Errorf("body =\n%s\nwant\n%s", got, want)
 	}
 	minimal := body(Alert{Title: "x", Time: sample.Time})
-	if minimal != "Normal alert\nTime: 2026-09-24T10:00:00-04:00\n" {
+	if minimal != "Normal alert\nTime: 2026-09-24 10:00:00 -04:00\n" {
 		t.Errorf("minimal body = %q", minimal)
 	}
 }
@@ -331,6 +331,25 @@ func TestSourceStatedOnce(t *testing.T) {
 		}
 		if !strings.Contains(body(a), "\n"+priorityName(p)+" alert\n") {
 			t.Errorf("level %d: body lacks its level line: %q", p, body(a))
+		}
+	}
+}
+
+func TestPushoverTimeReadable(t *testing.T) {
+	for _, tc := range []struct {
+		at   time.Time
+		want string
+	}{
+		{time.Date(2026, 9, 24, 22, 23, 46, 0, time.FixedZone("EDT", -4*3600)), "Time: 2026-09-24 22:23:46 -04:00\n"},
+		{time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC), "Time: 2026-01-02 03:04:05 +00:00\n"},
+		{time.Date(2026, 6, 1, 9, 0, 0, 0, time.FixedZone("IST", 5*3600+1800)), "Time: 2026-06-01 09:00:00 +05:30\n"},
+	} {
+		a := Alert{Title: "t", Time: tc.at}
+		if got := body(a); !strings.HasSuffix(got, tc.want) {
+			t.Errorf("body = %q, want it to end %q", got, tc.want)
+		}
+		if push := pushoverForm(t, a); !strings.Contains(push, tc.want) || strings.Contains(push, "T0") || strings.Contains(push, "T2") {
+			t.Errorf("pushover message = %q", push)
 		}
 	}
 }
