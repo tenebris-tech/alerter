@@ -9,44 +9,58 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"net/http/httptest"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 )
 
-// channels starts fake Pushover, Telnyx and SMTP services and configures all
-// three through the environment, as an operator would. setup, when given,
-// adjusts the fakes before they start.
-func channels(t *testing.T, setup ...func(push, sms *fakeAPI, mail *fakeSMTP)) (push, sms *fakeAPI, mail *fakeSMTP) {
+// fakes are the fake services channels starts.
+type fakes struct {
+	push, sms, hook *fakeAPI
+	mail            *fakeSMTP
+}
+
+// channels starts fake Pushover, Telnyx, SMTP and webhook services and
+// configures all four through the environment, as an operator would. setup,
+// when given, adjusts the fakes before they start.
+func channels(t *testing.T, setup ...func(*fakes)) *fakes {
 	t.Helper()
-	push, sms, mail = &fakeAPI{}, &fakeAPI{}, &fakeSMTP{}
-	for _, f := range setup {
-		f(push, sms, mail)
+	f := &fakes{push: &fakeAPI{}, sms: &fakeAPI{}, hook: &fakeAPI{}, mail: &fakeSMTP{}}
+	for _, fn := range setup {
+		fn(f)
 	}
-	serve(t, push, &pushoverURL)
-	serve(t, sms, &telnyxURL)
-	host, port := startSMTP(t, mail)
+	serve(t, f.push, &pushoverURL)
+	serve(t, f.sms, &telnyxURL)
+	host, port := startSMTP(t, f.mail)
+	hookSrv := httptest.NewServer(f.hook)
+	t.Cleanup(hookSrv.Close)
 	setEnv(t, map[string]string{
 		EnvPushoverToken: "tok", EnvPushoverDest: "user1",
 		EnvTelnyxAPIKey: "key", EnvSMSFrom: "+15550001111", EnvSMSTo: "+15550002222",
 		EnvSMTPHost: host, EnvSMTPPort: strconv.Itoa(port),
 		EnvSMTPFrom: "alerts@example.com", EnvSMTPTo: "ops@example.com",
+		EnvWebhookURL: hookSrv.URL + "/alert", EnvWebhookHeaders: `{"Authorization":"Bearer hook"}`,
 	})
-	return push, sms, mail
+	return f
 }
 
 func TestDeliversToEveryChannel(t *testing.T) {
-	push, sms, mail := channels(t)
+	f := channels(t)
+	push, sms, mail, hook := f.push, f.sms, f.mail, f.hook
 	d, path, _ := newTest(t)
-	if len(d.sinks) != 3 {
-		t.Fatalf("channels = %d, want 3", len(d.sinks))
+	if len(d.sinks) != 4 {
+		t.Fatalf("channels = %d, want 4", len(d.sinks))
 	}
 	d.High("Provider authentication failed", "claude-cli returned 401")
 	log := closeAndRead(t, d, path)
 
-	if push.count() != 1 || sms.count() != 1 {
-		t.Errorf("pushover %d, sms %d requests; want 1 each", push.count(), sms.count())
+	if push.count() != 1 || sms.count() != 1 || hook.count() != 1 {
+		t.Errorf("pushover %d, sms %d, webhook %d requests; want 1 each", push.count(), sms.count(), hook.count())
+	}
+	if hook.requests[0].Header.Get("Authorization") != "Bearer hook" || !strings.Contains(hook.bodies[0], `"title":"Provider authentication failed"`) {
+		t.Errorf("webhook request %v %s", hook.requests[0].Header, hook.bodies[0])
 	}
 	if _, rcpts, data, _, _ := mail.got(); len(rcpts) != 1 || !strings.Contains(data, "Subject: HIGH Claw@empire: Provider authentication failed") {
 		t.Errorf("mail rcpts %v data %q", rcpts, data)
@@ -60,7 +74,8 @@ func TestDeliversToEveryChannel(t *testing.T) {
 }
 
 func TestSuppressedRepeatsReachNoChannel(t *testing.T) {
-	push, sms, _ := channels(t)
+	f := channels(t)
+	push, sms := f.push, f.sms
 	d, path, clk := newTest(t)
 	for range 3 {
 		d.Low("MCP server unreachable", "fusion", "")
@@ -77,8 +92,8 @@ func TestSuppressedRepeatsReachNoChannel(t *testing.T) {
 }
 
 func TestChannelFailureLoggedOthersStillDelivered(t *testing.T) {
-	push, sms, mail := channels(t)
-	push.status, push.reply = http.StatusBadRequest, `{"token":"invalid"}`
+	f := channels(t, func(f *fakes) { f.push.status, f.push.reply = http.StatusBadRequest, `{"token":"invalid"}` })
+	sms, mail := f.sms, f.mail
 	d, path, _ := newTest(t)
 	d.Send(Alert{High: true, Title: "Config file invalid", EventID: "config"})
 	log := closeAndRead(t, d, path)
@@ -100,13 +115,13 @@ func TestChannelFailureLoggedOthersStillDelivered(t *testing.T) {
 }
 
 func TestEveryChannelFailureLogged(t *testing.T) {
-	channels(t, func(push, sms *fakeAPI, mail *fakeSMTP) {
-		push.status, sms.status, mail.rejectRcpt = 500, 500, "ops@"
+	channels(t, func(f *fakes) {
+		f.push.status, f.sms.status, f.hook.status, f.mail.rejectRcpt = 500, 500, 500, "ops@"
 	})
 	d, path, _ := newTest(t)
 	d.Low("x", "y")
 	log := closeAndRead(t, d, path)
-	for _, ch := range []string{"pushover", "sms", "smtp"} {
+	for _, ch := range []string{"pushover", "sms", "smtp", "webhook"} {
 		if !strings.Contains(log, "ERROR alerter: "+ch+" delivery failed: x\n") {
 			t.Errorf("no %s failure in log:\n%s", ch, log)
 		}
@@ -120,8 +135,8 @@ func TestHungChannelBoundedByTimeout(t *testing.T) {
 	old := sinkTimeout
 	sinkTimeout = 100 * time.Millisecond
 	t.Cleanup(func() { sinkTimeout = old })
-	push, sms, _ := channels(t)
-	push.delay = 10 * time.Second
+	f := channels(t, func(f *fakes) { f.push.delay = 10 * time.Second })
+	sms := f.sms
 	d, path, _ := newTest(t)
 	start := time.Now()
 	d.High("a", "b")
@@ -138,8 +153,8 @@ func TestChannelsDeliveredInParallel(t *testing.T) {
 	old := sinkTimeout
 	sinkTimeout = 300 * time.Millisecond
 	t.Cleanup(func() { sinkTimeout = old })
-	channels(t, func(push, sms *fakeAPI, mail *fakeSMTP) {
-		push.delay, sms.delay, mail.silent = 10*time.Second, 10*time.Second, true
+	channels(t, func(f *fakes) {
+		f.push.delay, f.sms.delay, f.mail.silent = 10*time.Second, 10*time.Second, true
 	})
 	d, path, _ := newTest(t)
 	start := time.Now()
@@ -150,12 +165,12 @@ func TestChannelsDeliveredInParallel(t *testing.T) {
 		t.Errorf("delivery took %v; channels were not sent in parallel", el)
 	}
 	if n := strings.Count(log, "delivery failed"); n != 3 {
-		t.Errorf("%d failures logged, want 3:\n%s", n, log)
+		t.Errorf("%d failures logged, want 3 (the webhook answers):\n%s", n, log)
 	}
 }
 
 func TestLogFailureWithChannelsCounted(t *testing.T) {
-	push, _, _ := channels(t)
+	push := channels(t).push
 	d, _, _ := newTest(t)
 	d.log.mu.Lock()
 	d.log.w = failingWriter{}

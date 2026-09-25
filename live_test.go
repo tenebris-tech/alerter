@@ -7,6 +7,9 @@ package alerter
 
 import (
 	"context"
+	"net"
+	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
@@ -34,6 +37,7 @@ func TestLive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
+	hook := liveWebhookListener(t)
 	var names []string
 	for _, s := range d.sinks {
 		names = append(names, s.name())
@@ -54,4 +58,30 @@ func TestLive(t *testing.T) {
 	if s := d.Stats(); s.Sent != 1 || s.Failed != 0 {
 		t.Errorf("stats = %+v; see the alert log above", s)
 	}
+	if hook != nil {
+		if n := hook.count(); n != 1 {
+			t.Errorf("webhook listener received %d request(s), want 1", n)
+		} else {
+			t.Logf("webhook listener received: %s", hook.bodies[0])
+		}
+	}
+}
+
+// liveWebhookListener listens on the configured webhook URL when it is a
+// loopback address, standing in for the receiver; nil otherwise.
+func liveWebhookListener(t *testing.T) *fakeAPI {
+	t.Helper()
+	u, err := url.Parse(os.Getenv(EnvWebhookURL))
+	if err != nil || u.Scheme != "http" || !isLoopback(u.Hostname()) {
+		return nil
+	}
+	ln, err := net.Listen("tcp", u.Host)
+	if err != nil {
+		t.Fatalf("webhook listener on %s: %v", u.Host, err)
+	}
+	f := &fakeAPI{}
+	srv := &http.Server{Handler: f, ReadHeaderTimeout: 10 * time.Second}
+	go func() { _ = srv.Serve(ln) }()
+	t.Cleanup(func() { _ = srv.Close() })
+	return f
 }

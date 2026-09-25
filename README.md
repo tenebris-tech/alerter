@@ -6,7 +6,7 @@ goroutine. Delivery happens on a worker goroutine, so callers never wait on
 I/O; a full queue drops the alert rather than blocking.
 
 Every alert is written to a log and delivered to each channel configured in
-the environment: Pushover, SMS (Telnyx) and mail (SMTP). The application
+the environment: Pushover, SMS (Telnyx), mail (SMTP) and a JSON webhook. The application
 never chooses where alerts go; the operator does, through `ALERTER_*`
 variables.
 
@@ -71,6 +71,20 @@ startup rather than at the first alert. Lists are comma separated.
 | Pushover | `ALERTER_PUSHOVER_TOKEN` (application token), `ALERTER_PUSHOVER_DEST` (user or group keys) | High alerts at priority 1 (bypass quiet hours), low at 0. |
 | SMS (Telnyx) | `ALERTER_TELNYX_API_KEY`, `ALERTER_SMS_FROM`, `ALERTER_SMS_TO` (E.164, e.g. `+15551234567`) | Subject line and description, up to 300 characters. |
 | Mail (SMTP) | `ALERTER_SMTP_HOST`, `ALERTER_SMTP_FROM`, `ALERTER_SMTP_TO`; optional `ALERTER_SMTP_PORT` (default 587), `ALERTER_SMTP_USER` with `ALERTER_SMTP_PASSWORD` | Port 465 is implicit TLS; any other port must offer STARTTLS, so neither the alert nor the credentials cross the network in clear. A loopback host (a local relay) may run without TLS. |
+| Webhook | `ALERTER_WEBHOOK_URL` (http or https); optional `ALERTER_WEBHOOK_HEADERS`, a JSON object of extra headers, e.g. `{"Authorization":"Bearer x"}` | One JSON `POST` per alert (below); any 2xx is success. Redirects are not followed. |
+
+The webhook body, built by `webhookPayload` in `webhook_payload.go` (the one
+place to change its shape):
+
+```json
+{"priority":"high","high":true,"title":"Provider authentication failed",
+ "description":"claude-cli returned 401","details":"run `claude login` on the host",
+ "event_id":"claude-cli","app":"ClawEh","instance":"empire",
+ "time":"2026-09-24T10:00:00-04:00","repeats":0,
+ "subject":"HIGH ClawEh@empire: Provider authentication failed"}
+```
+
+`details`, `event_id`, `app` and `instance` are omitted when empty.
 
 Every channel receives every alert that passes repeat suppression. The
 channels are sent to in parallel, each bounded by a 30-second timeout, so a
@@ -107,7 +121,11 @@ it never sends a real alert.
 
 `go run ./cmd/alert` sends two test alerts, one high and one low priority,
 through whatever `~/.alerter` and the environment configure, prints the
-counts, and exits non-zero unless both were delivered.
+counts, and exits non-zero unless both were delivered. When
+`ALERTER_WEBHOOK_URL` points at a loopback address (e.g.
+`http://127.0.0.1:9876/alert`), it listens there itself, prints each request
+it receives, and also requires both to arrive; `make test-live` does the
+same.
 
 `make test-live` sends one real alert through every channel configured in
 `~/.alerter` (variables in the environment override the file) and fails

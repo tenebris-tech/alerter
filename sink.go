@@ -34,6 +34,9 @@ const (
 	EnvSMTPPassword = "ALERTER_SMTP_PASSWORD"
 	EnvSMTPFrom     = "ALERTER_SMTP_FROM"
 	EnvSMTPTo       = "ALERTER_SMTP_TO"
+
+	EnvWebhookURL     = "ALERTER_WEBHOOK_URL"     // http or https
+	EnvWebhookHeaders = "ALERTER_WEBHOOK_HEADERS" // optional JSON object, e.g. {"Authorization":"Bearer x"}
 )
 
 // sinkTimeout bounds one delivery attempt to one channel, so a hung service
@@ -42,7 +45,8 @@ var sinkTimeout = 30 * time.Second
 
 // newHTTPClient returns the client for the HTTP channels. Redirects are not
 // followed: a redirect would re-send the request body, which for Pushover
-// carries the token, to whatever host it names.
+// carries the token, and for the webhook its headers, to whatever host it
+// names.
 func newHTTPClient() *http.Client {
 	return &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 }
@@ -57,7 +61,7 @@ type sink interface {
 func sinksFromEnv() ([]sink, error) {
 	var sinks []sink
 	var errs []error
-	for _, build := range []func() (sink, error){pushoverFromEnv, smsFromEnv, smtpFromEnv} {
+	for _, build := range []func() (sink, error){pushoverFromEnv, smsFromEnv, smtpFromEnv, webhookFromEnv} {
 		s, err := build()
 		if err != nil {
 			errs = append(errs, err)

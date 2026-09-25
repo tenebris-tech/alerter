@@ -13,7 +13,7 @@
 // Every alert is written to a log: the file named by WithLogFile, else the
 // file named by the ALERTER_LOG environment variable, else stdout. It is also
 // delivered to each channel whose ALERTER_* environment variables are set:
-// Pushover, SMS (Telnyx) and mail (SMTP). The calling application does not
+// Pushover, SMS (Telnyx), mail (SMTP) and a JSON webhook. The calling application does not
 // choose channels; the environment does. New first loads ~/.alerter, when it
 // exists, into the environment (see EnvFileName).
 package alerter

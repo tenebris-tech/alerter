@@ -17,6 +17,7 @@ var allChannelVars = []string{
 	EnvPushoverToken, EnvPushoverDest,
 	EnvTelnyxAPIKey, EnvSMSFrom, EnvSMSTo,
 	EnvSMTPHost, EnvSMTPPort, EnvSMTPUser, EnvSMTPPassword, EnvSMTPFrom, EnvSMTPTo,
+	EnvWebhookURL, EnvWebhookHeaders,
 }
 
 var goodPushover = map[string]string{EnvPushoverToken: "tok", EnvPushoverDest: "u1, u2"}

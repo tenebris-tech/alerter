@@ -7,6 +7,10 @@
 // every channel the environment (and ~/.alerter) configures, then reports
 // what happened. It exits non-zero when either alert was not delivered.
 //
+// When ALERTER_WEBHOOK_URL points at a loopback address, alert listens there
+// itself, prints each webhook request it receives, and also fails unless
+// both alerts arrived.
+//
 //	go run ./cmd/alert
 package main
 
@@ -31,6 +35,12 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+	hook, err := listenWebhook(os.Getenv(alerter.EnvWebhookURL))
+	if err != nil {
+		_ = al.Close(context.Background())
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 	send(al, time.Now())
 
 	ctx, cancel := context.WithTimeout(context.Background(), closeTimeout)
@@ -41,7 +51,17 @@ func main() {
 	}
 	s := al.Stats()
 	fmt.Printf("sent %d, failed %d, dropped %d, suppressed %d\n", s.Sent, s.Failed, s.Dropped, s.Suppressed)
-	if s.Sent != 2 {
+	ok := s.Sent == 2
+	if hook != nil {
+		hook.close()
+		got := hook.requests()
+		fmt.Printf("webhook listener on %s received %d request(s):\n", hook.addr, len(got))
+		for _, r := range got {
+			fmt.Print(r.report())
+		}
+		ok = ok && len(got) == 2
+	}
+	if !ok {
 		os.Exit(1)
 	}
 }
