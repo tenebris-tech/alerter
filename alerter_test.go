@@ -207,7 +207,7 @@ func (c *capture) send(_ context.Context, a Alert) error {
 func TestHelpersStampPriority(t *testing.T) {
 	d, _, _ := newTest(t, WithSuppressWindow(0))
 	c := &capture{}
-	d.sinks = []sink{c}
+	d.sinks = []channel{{sink: c}}
 	d.Normal("n", "")
 	d.Urgent("p", "")
 	d.Emergency("e", "")
@@ -224,7 +224,7 @@ func TestHelpersStampPriority(t *testing.T) {
 func TestSendNormalisesPriority(t *testing.T) {
 	d, path, _ := newTest(t, WithSuppressWindow(0))
 	c := &capture{}
-	d.sinks = []sink{c}
+	d.sinks = []channel{{sink: c}}
 	in := []int{-1, 3, 100, math.MinInt, math.MaxInt, Normal, Urgent, Emergency}
 	want := []int{Normal, Normal, Normal, Normal, Normal, Normal, Urgent, Emergency}
 	for i, p := range in {

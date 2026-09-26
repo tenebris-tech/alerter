@@ -13,9 +13,11 @@
 // Every alert is written to a log: the file named by WithLogFile, else the
 // file named by the ALERTER_LOG environment variable, else stdout. It is also
 // delivered to each channel whose ALERTER_* environment variables are set:
-// Pushover, SMS (Telnyx), mail (SMTP) and a JSON webhook. The calling application does not
-// choose channels; the environment does. New first loads ~/.alerter, when it
-// exists, into the environment (see EnvFileName).
+// Pushover, SMS (Telnyx), mail (SMTP) and a JSON webhook. Each channel may be
+// limited to alerts at or above a level (ALERTER_<CHANNEL>_MIN_PRI). The
+// calling application does not choose channels; the environment does. New
+// first loads ~/.alerter, when it exists, into the environment (see
+// EnvFileName).
 package alerter
 
 import (
@@ -227,7 +229,7 @@ type Dispatcher struct {
 	closed bool
 
 	log   *logWriter
-	sinks []sink
+	sinks []channel
 
 	// last is the delivery goroutine's private view: when each key was last
 	// delivered, and how many repeats were suppressed since.
@@ -246,7 +248,9 @@ type suppressed struct {
 // destination (WithLogFile, else ALERTER_LOG, else stdout) and the delivery
 // channels (each channel whose ALERTER_* variables are set). An unreadable
 // ~/.alerter, a named log file that cannot be opened, or a channel that is
-// incompletely or wrongly configured is an error.
+// incompletely or wrongly configured is an error. A minimum level that is
+// not 0 to 2 is a warning, written to the log, and the channel receives
+// every alert.
 func New(opts ...Option) (*Dispatcher, error) {
 	if err := loadEnvFile(); err != nil {
 		return nil, err
@@ -265,13 +269,19 @@ func New(opts ...Option) (*Dispatcher, error) {
 	if path == "" {
 		path = strings.TrimSpace(os.Getenv(EnvLogFile))
 	}
-	sinks, err := sinksFromEnv()
+	sinks, warnings, err := channelsFromEnv()
 	if err != nil {
 		return nil, err
 	}
 	lw, err := openLog(path)
 	if err != nil {
 		return nil, err
+	}
+	for _, w := range warnings {
+		if err := lw.writeWarning(o.now(), w); err != nil {
+			_ = lw.close()
+			return nil, err
+		}
 	}
 	d := &Dispatcher{
 		app:            o.app,
@@ -377,15 +387,18 @@ func (d *Dispatcher) run() {
 	}
 }
 
-// deliver writes a to the log and sends it to every channel at once, each
-// bounded by sinkTimeout, so a dead channel delays the others by at most one
-// timeout. A channel failure is recorded in the log. It reports whether every
-// delivery succeeded.
+// deliver writes a to the log and sends it to every channel whose minimum
+// level it reaches, all at once, each bounded by sinkTimeout, so a dead
+// channel delays the others by at most one timeout. A channel failure is
+// recorded in the log. It reports whether every delivery succeeded.
 func (d *Dispatcher) deliver(a Alert) bool {
 	ok := d.log.write(a) == nil
 	errs := make([]error, len(d.sinks))
 	var wg sync.WaitGroup
 	for i, s := range d.sinks {
+		if a.Priority < s.min {
+			continue
+		}
 		wg.Go(func() {
 			ctx, cancel := context.WithTimeout(context.Background(), sinkTimeout)
 			defer cancel()

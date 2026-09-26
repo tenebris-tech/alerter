@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -63,7 +64,7 @@ func main() {
 		for _, r := range got {
 			fmt.Print(r.report())
 		}
-		ok = ok && len(got) == testAlerts
+		ok = ok && len(got) == webhookWant()
 	}
 	if !ok {
 		os.Exit(1)
@@ -72,6 +73,17 @@ func main() {
 
 // testAlerts is how many alerts send raises.
 const testAlerts = 3
+
+// webhookWant is how many of the test alerts the webhook should receive:
+// all of them, less those below ALERTER_WEBHOOK_MIN_PRI when it names a
+// level.
+func webhookWant() int {
+	n, err := strconv.Atoi(strings.TrimSpace(os.Getenv(alerter.EnvWebhookMinPri)))
+	if err != nil || n < alerter.Normal || n > alerter.Emergency {
+		return testAlerts
+	}
+	return testAlerts - n
+}
 
 // send raises one test alert at each level. They share a title: repeat
 // suppression keys on the level too, so none is held back, and the message

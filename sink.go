@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -41,6 +42,14 @@ const (
 
 	EnvWebhookURL     = "ALERTER_WEBHOOK_URL"     // http or https
 	EnvWebhookHeaders = "ALERTER_WEBHOOK_HEADERS" // optional JSON object, e.g. {"Authorization":"Bearer x"}
+
+	// The lowest alert level each channel receives: Normal (0, the default:
+	// every alert), Urgent (1) or Emergency (2). A value that is not a level
+	// is logged as a warning and treated as Normal.
+	EnvPushoverMinPri = "ALERTER_PUSHOVER_MIN_PRI"
+	EnvSMSMinPri      = "ALERTER_SMS_MIN_PRI"
+	EnvSMTPMinPri     = "ALERTER_SMTP_MIN_PRI"
+	EnvWebhookMinPri  = "ALERTER_WEBHOOK_MIN_PRI"
 )
 
 // sinkTimeout bounds one delivery attempt to one channel, so a hung service
@@ -59,6 +68,51 @@ func newHTTPClient() *http.Client {
 type sink interface {
 	name() string
 	send(ctx context.Context, a Alert) error
+}
+
+// channel is a sink and the lowest alert level it receives.
+type channel struct {
+	sink
+	min int
+}
+
+// minPriVars names each channel's minimum-level variable, by sink name.
+var minPriVars = map[string]string{
+	"pushover": EnvPushoverMinPri, "sms": EnvSMSMinPri, "smtp": EnvSMTPMinPri, "webhook": EnvWebhookMinPri,
+}
+
+// channelsFromEnv builds every channel whose variables are set, each with
+// its minimum level. The warnings describe minimum-level variables that do
+// not name a level; those channels receive every alert.
+func channelsFromEnv() ([]channel, []string, error) {
+	sinks, err := sinksFromEnv()
+	if err != nil {
+		return nil, nil, err
+	}
+	var channels []channel
+	var warnings []string
+	for _, s := range sinks {
+		min, warn := minPriority(minPriVars[s.name()])
+		if warn != "" {
+			warnings = append(warnings, warn)
+		}
+		channels = append(channels, channel{sink: s, min: min})
+	}
+	return channels, warnings, nil
+}
+
+// minPriority reads a minimum-level variable: Normal when unset, else the
+// level it names, else Normal with a warning.
+func minPriority(key string) (int, string) {
+	v := env(key)
+	if v == "" {
+		return Normal, ""
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n < Normal || n > Emergency {
+		return Normal, fmt.Sprintf("%s %q is not a priority from %d to %d; sending every alert", key, v, Normal, Emergency)
+	}
+	return n, ""
 }
 
 // sinksFromEnv builds every channel whose variables are set.

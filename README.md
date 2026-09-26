@@ -70,6 +70,18 @@ on but incomplete or malformed (a missing variable, a bad port, a number not
 in E.164 form, an unparsable address) makes `New` fail, so a typo shows at
 startup rather than at the first alert. Lists are comma separated.
 
+Each channel also takes an optional `ALERTER_<CHANNEL>_MIN_PRI`
+(`ALERTER_PUSHOVER_MIN_PRI`, `ALERTER_SMS_MIN_PRI`, `ALERTER_SMTP_MIN_PRI`,
+`ALERTER_WEBHOOK_MIN_PRI`): the lowest level the channel receives, `0`
+(Normal), `1` (Urgent) or `2` (Emergency). Unset, the channel receives every
+alert. For example, `ALERTER_SMS_MIN_PRI=2` texts only Emergency alerts while
+mail still carries all of them. A value that is not `0`, `1` or `2` is
+recorded in the log as a warning at startup and treated as `0`:
+
+```
+2026-09-24T10:00:00-04:00 WARNING alerter: ALERTER_SMS_MIN_PRI "5" is not a priority from 0 to 2; sending every alert
+```
+
 | Channel | Variables | Notes |
 |---|---|---|
 | Pushover | `ALERTER_PUSHOVER_TOKEN` (application token), `ALERTER_PUSHOVER_DEST` (user or group keys); optional `ALERTER_PUSHOVER_NORMAL`, `ALERTER_PUSHOVER_URGENT`, `ALERTER_PUSHOVER_EMERGENCY` | The Pushover priority (-2 to 2) each alert level is sent at; defaults 0, 1 (bypasses quiet hours) and 2 (bypasses quiet hours and repeats every 60 seconds until acknowledged, for up to an hour). Set all three to 0 never to be woken. |
@@ -117,10 +129,12 @@ count and details, with the source stated once, in the title.
 An SMS has no subject, so it reads `Title: description` and then, for
 example, `Urgent alert from MyAppName@myserver`.
 
-Every channel receives every alert that passes repeat suppression. The
-channels are sent to in parallel, each bounded by a 30-second timeout, so a
-dead channel delays the others by at most that. A channel failure does not
-stop the others; it is recorded in the log after the alert:
+Every channel receives every alert that passes repeat suppression and
+reaches the channel's minimum level. The channels are sent to in parallel,
+each bounded by a 30-second timeout, so a dead channel delays the others by
+at most that. A channel skipped for its minimum level is not a failure. A
+channel failure does not stop the others; it is recorded in the log after
+the alert:
 
 ```
 2026-09-24T10:00:00-04:00 ERROR alerter: pushover delivery failed [config]: Config file invalid
@@ -162,8 +176,8 @@ priorities the Emergency test alert repeats every minute until acknowledged;
 set `ALERTER_PUSHOVER_EMERGENCY=0` (or all three) to test quietly. When
 `ALERTER_WEBHOOK_URL` points at a loopback address (e.g.
 `http://127.0.0.1:9876/alert`), it listens there itself, prints each request
-it receives, and also requires all three to arrive; `make test-live` does the
-same.
+it receives, and also requires all three to arrive (fewer when
+`ALERTER_WEBHOOK_MIN_PRI` holds some back); `make test-live` does the same.
 
 `make test-live` sends one real alert through every channel configured in
 `~/.alerter` (variables in the environment override the file) and fails

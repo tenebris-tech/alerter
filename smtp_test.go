@@ -77,6 +77,7 @@ type fakeSMTP struct {
 	from      string
 	rcpts     []string
 	data      string
+	messages  int // deliveries accepted
 	authed    bool
 	tlsActive bool
 }
@@ -206,6 +207,7 @@ func (f *fakeSMTP) handle(c net.Conn) {
 			}
 			f.mu.Lock()
 			f.data = b.String()
+			f.messages++
 			f.mu.Unlock()
 			say("250 queued")
 		case "QUIT":
@@ -218,6 +220,13 @@ func (f *fakeSMTP) handle(c net.Conn) {
 			say("502 unknown")
 		}
 	}
+}
+
+// count is how many messages the server accepted.
+func (f *fakeSMTP) count() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.messages
 }
 
 func (f *fakeSMTP) got() (from string, rcpts []string, data string, authed, tlsOn bool) {

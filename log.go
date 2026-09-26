@@ -83,6 +83,15 @@ func formatFailure(t time.Time, channel string, a Alert, err error) string {
 	return b.String()
 }
 
+// formatWarning renders a configuration warning found at startup.
+func formatWarning(t time.Time, msg string) string {
+	return t.Format(time.RFC3339) + " WARNING alerter: " + msg + "\n"
+}
+
+func (l *logWriter) writeWarning(t time.Time, msg string) error {
+	return l.writeString(formatWarning(t, msg))
+}
+
 func (l *logWriter) writeFailure(t time.Time, channel string, a Alert, err error) error {
 	return l.writeString(formatFailure(t, channel, a, err))
 }

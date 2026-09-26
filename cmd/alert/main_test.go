@@ -28,6 +28,15 @@ func (r *recorder) Emergency(t, d string, x ...string) {
 }
 func (r *recorder) Close(context.Context) error { return nil }
 
+func TestWebhookWant(t *testing.T) {
+	for value, want := range map[string]int{"": 3, "0": 3, "1": 2, "2": 1, "3": 3, "x": 3} {
+		t.Setenv(alerter.EnvWebhookMinPri, value)
+		if got := webhookWant(); got != want {
+			t.Errorf("%s=%q: want %d requests, got %d", alerter.EnvWebhookMinPri, value, want, got)
+		}
+	}
+}
+
 func TestSendRaisesOnePerLevel(t *testing.T) {
 	r := &recorder{}
 	send(r)
