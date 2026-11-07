@@ -24,6 +24,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"strconv"
 	"strings"
@@ -40,6 +41,10 @@ const (
 	// same Title and EventID) at the same level is held back after one was
 	// sent.
 	DefaultSuppressWindow = 10 * time.Minute
+	// DefaultDirMode is the mode of log directories the alerter creates.
+	DefaultDirMode fs.FileMode = 0o755
+	// DefaultFileMode is the mode of a log file the alerter creates.
+	DefaultFileMode fs.FileMode = 0o644
 	// EnvLogFile names the environment variable consulted for the log path
 	// when WithLogFile is not used.
 	EnvLogFile = "ALERTER_LOG"
@@ -150,6 +155,8 @@ type Option func(*options) error
 type options struct {
 	app, instance  string
 	logFile        string
+	dirMode        fs.FileMode
+	fileMode       fs.FileMode
 	queueSize      int
 	suppressWindow time.Duration
 	now            func() time.Time // tests
@@ -181,6 +188,31 @@ func WithLogFile(path string) Option {
 			return errors.New("alerter: WithLogFile: empty path")
 		}
 		o.logFile = path
+		return nil
+	}
+}
+
+// WithFileModes sets the permissions of the log file and of any directories
+// above it that the alerter creates (defaults DefaultDirMode and
+// DefaultFileMode). They are applied exactly, regardless of the umask, and
+// only to what the alerter creates: an existing file or directory keeps its
+// mode. They are ignored when the log goes to stdout. The owner must be able
+// to use them: dir needs 0300 (write and search) and file needs 0200 (write).
+func WithFileModes(dir, file fs.FileMode) Option {
+	return func(o *options) error {
+		if dir&^fs.ModePerm != 0 {
+			return fmt.Errorf("alerter: WithFileModes: dir mode %#o: only permission bits are allowed", uint32(dir))
+		}
+		if file&^fs.ModePerm != 0 {
+			return fmt.Errorf("alerter: WithFileModes: file mode %#o: only permission bits are allowed", uint32(file))
+		}
+		if dir&0o300 != 0o300 {
+			return fmt.Errorf("alerter: WithFileModes: dir mode %#o: the owner needs write and search (0300)", uint32(dir))
+		}
+		if file&0o200 == 0 {
+			return fmt.Errorf("alerter: WithFileModes: file mode %#o: the owner needs write (0200)", uint32(file))
+		}
+		o.dirMode, o.fileMode = dir, file
 		return nil
 	}
 }
@@ -247,15 +279,17 @@ type suppressed struct {
 // It first loads ~/.alerter into the environment, then decides the log
 // destination (WithLogFile, else ALERTER_LOG, else stdout) and the delivery
 // channels (each channel whose ALERTER_* variables are set). An unreadable
-// ~/.alerter, a named log file that cannot be opened, or a channel that is
-// incompletely or wrongly configured is an error. A minimum level that is
-// not 0 to 2 is a warning, written to the log, and the channel receives
-// every alert.
+// ~/.alerter, a named log file that cannot be opened (missing directories
+// above it are created), or a channel that is incompletely or wrongly
+// configured is an error. A minimum level that is not 0 to 2 is a warning,
+// written to the log, and the channel receives every alert.
 func New(opts ...Option) (*Dispatcher, error) {
 	if err := loadEnvFile(); err != nil {
 		return nil, err
 	}
 	o := options{
+		dirMode:        DefaultDirMode,
+		fileMode:       DefaultFileMode,
 		queueSize:      DefaultQueueSize,
 		suppressWindow: DefaultSuppressWindow,
 		now:            time.Now,
@@ -273,7 +307,7 @@ func New(opts ...Option) (*Dispatcher, error) {
 	if err != nil {
 		return nil, err
 	}
-	lw, err := openLog(path)
+	lw, err := openLog(path, o.dirMode, o.fileMode)
 	if err != nil {
 		return nil, err
 	}
