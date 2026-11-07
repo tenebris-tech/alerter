@@ -6,9 +6,12 @@
 package alerter
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -23,17 +26,64 @@ type logWriter struct {
 	file *os.File // nil when writing to stdout
 }
 
-// openLog opens path for appending, creating it if missing, or returns a
-// writer on stdout when path is empty.
-func openLog(path string) (*logWriter, error) {
+// openLog opens path for appending, or returns a writer on stdout when path
+// is empty. A missing file, and any missing directories above it, are created
+// with exactly fileMode and dirMode; ones that already exist keep their modes.
+func openLog(path string, dirMode, fileMode fs.FileMode) (*logWriter, error) {
 	if path == "" {
 		return &logWriter{w: os.Stdout}, nil
 	}
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644) //nolint:gosec // an operator-chosen log path
-	if err != nil {
-		return nil, fmt.Errorf("alerter: open log %s: %w", path, err)
+	if err := makeDirs(filepath.Dir(path), dirMode); err != nil {
+		return nil, err
 	}
-	return &logWriter{w: f, file: f}, nil
+	// Create with O_EXCL to know whether the file is ours to set the mode of.
+	// If it exists, reopen it; if it vanished in between, try once more.
+	for range 2 {
+		f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_EXCL|os.O_WRONLY, fileMode) //nolint:gosec // an operator-chosen log path
+		if err == nil {
+			if err := f.Chmod(fileMode); err != nil {
+				_ = f.Close()
+				return nil, fmt.Errorf("alerter: set log mode %s: %w", path, err)
+			}
+			return &logWriter{w: f, file: f}, nil
+		}
+		if !errors.Is(err, fs.ErrExist) {
+			return nil, fmt.Errorf("alerter: open log %s: %w", path, err)
+		}
+		f, err = os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0) //nolint:gosec // an operator-chosen log path
+		if err == nil {
+			return &logWriter{w: f, file: f}, nil
+		}
+		if !errors.Is(err, fs.ErrNotExist) {
+			return nil, fmt.Errorf("alerter: open log %s: %w", path, err)
+		}
+	}
+	return nil, fmt.Errorf("alerter: open log %s: %w", path, fs.ErrNotExist)
+}
+
+// makeDirs creates dir and any missing parents, each with exactly mode.
+// Directories that already exist are left as they are.
+func makeDirs(dir string, mode fs.FileMode) error {
+	if _, err := os.Stat(dir); err == nil {
+		return nil // exists (if it is not a directory, opening the log reports it)
+	} else if !errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("alerter: log directory %s: %w", dir, err)
+	}
+	if parent := filepath.Dir(dir); parent != dir {
+		if err := makeDirs(parent, mode); err != nil {
+			return err
+		}
+	}
+	if err := os.Mkdir(dir, mode); err != nil {
+		if errors.Is(err, fs.ErrExist) {
+			return nil // created by someone else meanwhile: not ours to change
+		}
+		return fmt.Errorf("alerter: create log directory %s: %w", dir, err)
+	}
+	if err := os.Chmod(dir, mode); err != nil {
+		return fmt.Errorf("alerter: set log directory mode %s: %w", dir, err)
+	}
+	return nil
 }
 
 // format renders one alert as its log record.

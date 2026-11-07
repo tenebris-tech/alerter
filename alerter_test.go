@@ -9,11 +9,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"math"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -91,6 +93,11 @@ func TestOptionErrors(t *testing.T) {
 		{"zero queue", WithQueueSize(0)},
 		{"negative queue", WithQueueSize(-1)},
 		{"negative window", WithSuppressWindow(-time.Second)},
+		{"dir mode with type bits", WithFileModes(fs.ModeDir|0o755, 0o644)},
+		{"file mode with setuid", WithFileModes(0o755, fs.ModeSetuid|0o644)},
+		{"swapped modes", WithFileModes(0o644, 0o755)},
+		{"dir mode without owner search", WithFileModes(0o600, 0o644)},
+		{"file mode without owner write", WithFileModes(0o755, 0o444)},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -155,7 +162,11 @@ func TestDestinationPrecedence(t *testing.T) {
 	})
 
 	t.Run("unopenable path is an error", func(t *testing.T) {
-		if _, err := New(WithLogFile(filepath.Join(dir, "missing-dir", "alerts.txt"))); err == nil {
+		notDir := filepath.Join(dir, "not-a-dir")
+		if err := os.WriteFile(notDir, nil, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := New(WithLogFile(filepath.Join(notDir, "alerts.txt"))); err == nil {
 			t.Error("expected an open error")
 		}
 	})
@@ -454,7 +465,7 @@ func TestWriteFailureCounted(t *testing.T) {
 }
 
 func TestLogWriterCloseTwice(t *testing.T) {
-	lw, err := openLog(filepath.Join(t.TempDir(), "a.txt"))
+	lw, err := openLog(filepath.Join(t.TempDir(), "a.txt"), DefaultDirMode, DefaultFileMode)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -479,4 +490,137 @@ func TestNop(t *testing.T) {
 	if err := n.Close(context.Background()); err != nil {
 		t.Errorf("Close: %v", err)
 	}
+}
+
+// mode returns the permission bits of path.
+func mode(t *testing.T, path string) fs.FileMode {
+	t.Helper()
+	fi, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return fi.Mode().Perm()
+}
+
+func newAndClose(t *testing.T, opts ...Option) {
+	t.Helper()
+	d, err := New(opts...)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	if err := d.Close(context.Background()); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+}
+
+func TestFileModes(t *testing.T) {
+	// A strict umask strips the group and other bits the expected modes have,
+	// so a mode that comes through intact was set by the alerter. Not
+	// parallel: the umask is process-wide.
+	old := syscall.Umask(0o077)
+	t.Cleanup(func() { syscall.Umask(old) })
+
+	t.Run("defaults on create", func(t *testing.T) {
+		base := t.TempDir()
+		path := filepath.Join(base, "a", "b", "alerts.txt")
+		newAndClose(t, WithLogFile(path))
+		for _, d := range []string{filepath.Join(base, "a"), filepath.Join(base, "a", "b")} {
+			if got := mode(t, d); got != DefaultDirMode {
+				t.Errorf("%s mode = %v, want %v", d, got, DefaultDirMode)
+			}
+		}
+		if got := mode(t, path); got != DefaultFileMode {
+			t.Errorf("file mode = %v, want %v", got, DefaultFileMode)
+		}
+	})
+
+	t.Run("exact modes on create, umask ignored", func(t *testing.T) {
+		base := t.TempDir()
+		path := filepath.Join(base, "logs", "alerts.txt")
+		newAndClose(t, WithLogFile(path), WithFileModes(0o770, 0o660))
+		if got := mode(t, filepath.Dir(path)); got != 0o770 {
+			t.Errorf("dir mode = %v, want 0770", got)
+		}
+		if got := mode(t, path); got != 0o660 {
+			t.Errorf("file mode = %v, want 0660", got)
+		}
+	})
+
+	t.Run("environment path gets directories and modes too", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "logs", "alerts.txt")
+		t.Setenv(EnvLogFile, path)
+		newAndClose(t, WithFileModes(0o750, 0o640))
+		if got := mode(t, filepath.Dir(path)); got != 0o750 {
+			t.Errorf("dir mode = %v, want 0750", got)
+		}
+		if got := mode(t, path); got != 0o640 {
+			t.Errorf("file mode = %v, want 0640", got)
+		}
+	})
+
+	t.Run("existing parent kept, missing child created", func(t *testing.T) {
+		parent := filepath.Join(t.TempDir(), "a")
+		if err := os.Mkdir(parent, 0o711); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chmod(parent, 0o711); err != nil {
+			t.Fatal(err)
+		}
+		path := filepath.Join(parent, "b", "alerts.txt")
+		newAndClose(t, WithLogFile(path), WithFileModes(0o750, 0o640))
+		if got := mode(t, parent); got != 0o711 {
+			t.Errorf("parent mode = %v, want 0711 unchanged", got)
+		}
+		if got := mode(t, filepath.Dir(path)); got != 0o750 {
+			t.Errorf("child mode = %v, want 0750", got)
+		}
+	})
+
+	t.Run("regular file inside the path is an error", func(t *testing.T) {
+		notDir := filepath.Join(t.TempDir(), "not-a-dir")
+		if err := os.WriteFile(notDir, nil, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := New(WithLogFile(filepath.Join(notDir, "sub", "alerts.txt"))); err == nil {
+			t.Error("expected an error")
+		}
+	})
+
+	t.Run("existing file and directory keep their modes", func(t *testing.T) {
+		dir := filepath.Join(t.TempDir(), "logs")
+		if err := os.Mkdir(dir, 0o711); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chmod(dir, 0o711); err != nil {
+			t.Fatal(err)
+		}
+		path := filepath.Join(dir, "alerts.txt")
+		if err := os.WriteFile(path, []byte("earlier\n"), 0o640); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chmod(path, 0o640); err != nil {
+			t.Fatal(err)
+		}
+		d, err := New(WithLogFile(path), WithFileModes(0o700, 0o600))
+		if err != nil {
+			t.Fatalf("New: %v", err)
+		}
+		d.Normal("t", "d")
+		if err := d.Close(context.Background()); err != nil {
+			t.Fatalf("Close: %v", err)
+		}
+		if got := mode(t, dir); got != 0o711 {
+			t.Errorf("dir mode = %v, want 0711 unchanged", got)
+		}
+		if got := mode(t, path); got != 0o640 {
+			t.Errorf("file mode = %v, want 0640 unchanged", got)
+		}
+		b, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.HasPrefix(string(b), "earlier\n") || !strings.Contains(string(b), " t: d\n") {
+			t.Errorf("existing log not appended to:\n%s", b)
+		}
+	})
 }

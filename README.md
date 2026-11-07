@@ -56,7 +56,11 @@ keep it mode 0600.
 3. otherwise stdout.
 
 Both file settings expect a full path and file name. The file is created if
-missing and appended to otherwise. One record per alert:
+missing and appended to otherwise; missing directories above it are created
+too. What the alerter creates gets mode `0755` (directories) and `0644`
+(file), or the modes given with `WithFileModes(dir, file)`, regardless of
+umask; the owner needs write and search on the directory and write on the
+file. An existing file or directory keeps its mode. One record per alert:
 
 ```
 2026-09-24T10:00:00-04:00 URGENT    MyAppName@myserver [claude-cli] Provider authentication failed: claude-cli returned 401
