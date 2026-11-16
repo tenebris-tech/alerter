@@ -162,7 +162,7 @@ type options struct {
 	now            func() time.Time // tests
 }
 
-// WithAppName names the application in every alert, e.g. "ClawEh".
+// WithAppName names the application in every alert, e.g. "MyApp".
 func WithAppName(name string) Option {
 	return func(o *options) error {
 		o.app = strings.TrimSpace(name)

@@ -23,9 +23,9 @@ func TestEveryLevelThroughEveryChannel(t *testing.T) {
 		t.Fatalf("stats = %+v", s)
 	}
 	for _, want := range []string{
-		" NORMAL    Claw@empire Level zero: n\n",
-		" URGENT    Claw@empire Level one: p\n",
-		" EMERGENCY Claw@empire Level two: e\n",
+		" NORMAL    MyApp@host1 Level zero: n\n",
+		" URGENT    MyApp@host1 Level one: p\n",
+		" EMERGENCY MyApp@host1 Level two: e\n",
 	} {
 		if !strings.Contains(log, want) {
 			t.Errorf("log lacks %q:\n%s", want, log)
@@ -41,10 +41,10 @@ func TestEveryLevelThroughEveryChannel(t *testing.T) {
 		form, _ := url.ParseQuery(f.push.bodies[i])
 		msg := form.Get("message")
 		if form.Get("priority") != pushPrio[i] || !strings.Contains(msg, "\n"+names[i]+" alert\n") ||
-			strings.Contains(msg, "Claw@empire") || form.Get("title") != "Level "+[]string{"zero", "one", "two"}[i]+" (Claw@empire)" {
+			strings.Contains(msg, "MyApp@host1") || form.Get("title") != "Level "+[]string{"zero", "one", "two"}[i]+" (MyApp@host1)" {
 			t.Errorf("pushover %d: priority %q title %q message %q", i, form.Get("priority"), form.Get("title"), msg)
 		}
-		if !strings.Contains(f.sms.bodies[i], names[i]+" alert from Claw@empire") {
+		if !strings.Contains(f.sms.bodies[i], names[i]+" alert from MyApp@host1") {
 			t.Errorf("sms %d: %s", i, f.sms.bodies[i])
 		}
 		if !strings.Contains(f.hook.bodies[i], `"priority":`+pushPrio[i]+`,"priority_name":"`+strings.ToLower(names[i])+`"`) {
@@ -64,8 +64,8 @@ func TestEscalationIsNotSuppressed(t *testing.T) {
 	d.Emergency("Disk full", "repeat")
 	d.Normal("Disk full", "back down, still a repeat of the first")
 	log := closeAndRead(t, d, path)
-	if !strings.Contains(log, " NORMAL    Claw@empire Disk full: first\n") ||
-		!strings.Contains(log, " EMERGENCY Claw@empire Disk full: escalated\n") ||
+	if !strings.Contains(log, " NORMAL    MyApp@host1 Disk full: first\n") ||
+		!strings.Contains(log, " EMERGENCY MyApp@host1 Disk full: escalated\n") ||
 		strings.Count(log, "Disk full") != 2 {
 		t.Errorf("log:\n%s", log)
 	}

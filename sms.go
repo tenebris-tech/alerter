@@ -53,7 +53,7 @@ func (s *smsSink) name() string { return "sms" }
 
 // smsText leads with the title and description, then the priority line:
 // "Provider authentication failed: claude-cli returned 401\nUrgent alert
-// from ClawEh@empire".
+// from MyApp@host1".
 func smsText(a Alert) string {
 	t := strings.Join(strings.Fields(a.Title), " ")
 	if a.Description != "" {

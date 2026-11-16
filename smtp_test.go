@@ -252,7 +252,7 @@ func TestSMTPMessage(t *testing.T) {
 	for _, want := range []string{
 		`From: "Alerts" <alerts@example.com>`,
 		`To: <ops@example.com>, "Pager" <pager@example.com>`,
-		"Subject: Provider authentication failed (ClawEh@empire)",
+		"Subject: Provider authentication failed (MyApp@host1)",
 		"Date: Thu, 24 Sep 2026 10:00:00 -0400",
 		"X-Priority: 1", "Importance: high",
 		"MIME-Version: 1.0", "Content-Type: text/plain; charset=UTF-8",
@@ -268,7 +268,7 @@ func TestSMTPMessage(t *testing.T) {
 		t.Errorf("not quoted-printable:\n%s", head)
 	}
 	want := "claude-cli returned 401\r\n\r\n" +
-		"Source: ClawEh@empire\r\nPriority: Urgent\r\nDate: Thu, 24 Sep 2026 10:00:00 -0400\r\n" +
+		"Source: MyApp@host1\r\nPriority: Urgent\r\nDate: Thu, 24 Sep 2026 10:00:00 -0400\r\n" +
 		"Event: claude-cli\r\nRepeats: 3 suppressed since the last one\r\n\r\n" +
 		"run `claude login`\r\non the host\r\n"
 	if got := decodeQP(t, text); got != want {
@@ -517,7 +517,7 @@ func TestMailIsFullerThanPushover(t *testing.T) {
 	msg := string(newSMTPSink("h", 25, "", "").message(sample))
 	_, text, _ := strings.Cut(msg, "\r\n\r\n")
 	mail := decodeQP(t, text)
-	for _, want := range []string{"\r\nSource: ClawEh@empire\r\n", "\r\nPriority: Urgent\r\n", "\r\nDate: "} {
+	for _, want := range []string{"\r\nSource: MyApp@host1\r\n", "\r\nPriority: Urgent\r\n", "\r\nDate: "} {
 		if !strings.Contains(mail, want) {
 			t.Errorf("mail lacks %q", want)
 		}
