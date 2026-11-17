@@ -145,7 +145,7 @@ func TestPushoverLevelsEndToEnd(t *testing.T) {
 	got := map[string]string{}
 	for _, b := range f.bodies {
 		form, _ := url.ParseQuery(b)
-		title := strings.TrimSuffix(form.Get("title"), " (Claw@empire)")
+		title := strings.TrimSuffix(form.Get("title"), " (MyApp@host1)")
 		if prev, seen := got[title]; seen && prev != form.Get("priority") {
 			t.Errorf("%s sent at %s and %s", title, prev, form.Get("priority"))
 		}

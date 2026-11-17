@@ -187,7 +187,7 @@ func source(a Alert) string {
 }
 
 // priorityLine says how urgent the alert is and where it came from:
-// "Normal alert from ClawEh@empire", "Urgent alert from …" or "Emergency
+// "Normal alert from MyApp@host1", "Urgent alert from …" or "Emergency
 // alert from …". The words avoid high and low, which read like measurements.
 // It is for text with no subject line (SMS); body leaves the source out
 // because the subject already carries it.
@@ -201,7 +201,7 @@ func priorityLine(a Alert) string {
 
 // subject is the one-line heading every channel uses. It leads with the
 // title, the part that matters, followed by the source:
-// "Provider authentication failed (ClawEh@empire)". Line breaks are
+// "Provider authentication failed (MyApp@host1)". Line breaks are
 // flattened so it is safe as a mail header.
 func subject(a Alert) string {
 	s := a.Title

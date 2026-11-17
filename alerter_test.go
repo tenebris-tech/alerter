@@ -49,7 +49,7 @@ func newTest(t *testing.T, opts ...Option) (*Dispatcher, string, *clock) {
 	t.Helper()
 	c := &clock{t: time.Date(2026, 9, 24, 10, 0, 0, 0, time.FixedZone("EDT", -4*3600))}
 	path := filepath.Join(t.TempDir(), "alerts.txt")
-	all := append([]Option{WithLogFile(path), withClock(c.now), WithAppName("Claw"), WithInstanceName("empire")}, opts...)
+	all := append([]Option{WithLogFile(path), withClock(c.now), WithAppName("MyApp"), WithInstanceName("host1")}, opts...)
 	d, err := New(all...)
 	if err != nil {
 		t.Fatalf("New: %v", err)
@@ -177,7 +177,7 @@ func TestSendWritesRecord(t *testing.T) {
 	d.Send(Alert{Priority: Urgent, Title: "Provider authentication failed", Description: "claude-cli returned 401",
 		Details: "line one\nline two\n", EventID: "claude-cli"})
 	got := closeAndRead(t, d, path)
-	want := "2026-09-24T10:00:00-04:00 URGENT    Claw@empire [claude-cli] Provider authentication failed: claude-cli returned 401\n" +
+	want := "2026-09-24T10:00:00-04:00 URGENT    MyApp@host1 [claude-cli] Provider authentication failed: claude-cli returned 401\n" +
 		"    line one\n    line two\n"
 	if got != want {
 		t.Errorf("record =\n%q\nwant\n%q", got, want)
@@ -193,9 +193,9 @@ func TestLevelHelpers(t *testing.T) {
 	d.Urgent("P", "priority one", "d1", "d2")
 	d.Emergency("E", "emergency one", "e1")
 	got := closeAndRead(t, d, path)
-	want := "2026-09-24T10:00:00-04:00 NORMAL    Claw@empire N: normal one\n" +
-		"2026-09-24T10:00:00-04:00 URGENT    Claw@empire P: priority one\n    d1\n    d2\n" +
-		"2026-09-24T10:00:00-04:00 EMERGENCY Claw@empire E: emergency one\n    e1\n"
+	want := "2026-09-24T10:00:00-04:00 NORMAL    MyApp@host1 N: normal one\n" +
+		"2026-09-24T10:00:00-04:00 URGENT    MyApp@host1 P: priority one\n    d1\n    d2\n" +
+		"2026-09-24T10:00:00-04:00 EMERGENCY MyApp@host1 E: emergency one\n    e1\n"
 	if got != want {
 		t.Errorf("log =\n%s\nwant\n%s", got, want)
 	}

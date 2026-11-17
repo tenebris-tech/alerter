@@ -69,8 +69,8 @@ func TestWebhookPayload(t *testing.T) {
 		"priority": float64(1), "priority_name": "urgent",
 		"title": "Provider authentication failed", "description": "claude-cli returned 401",
 		"details": "run `claude login`\non the host\n", "event_id": "claude-cli",
-		"app": "ClawEh", "instance": "empire", "time": "2026-09-24T10:00:00-04:00",
-		"repeats": float64(3), "subject": "Provider authentication failed (ClawEh@empire)",
+		"app": "MyApp", "instance": "host1", "time": "2026-09-24T10:00:00-04:00",
+		"repeats": float64(3), "subject": "Provider authentication failed (MyApp@host1)",
 	}
 	if len(got) != len(want) {
 		t.Errorf("payload has %d fields, want %d: %v", len(got), len(want), got)

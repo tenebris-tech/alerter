@@ -85,9 +85,9 @@ func TestSMTPAddressLists(t *testing.T) {
 	setEnv(t, goodSMTP)
 	for to, want := range map[string]string{
 		`"Ops, Team" <ops@example.com>, pager@example.com`: "ops@example.com|pager@example.com",
-		"a@example.com,":        "a@example.com",
-		", a@example.com , ":    "a@example.com",
-		"a@example.com,b@x.org": "a@example.com|b@x.org",
+		"a@example.com,":              "a@example.com",
+		", a@example.com , ":          "a@example.com",
+		"a@example.com,b@example.org": "a@example.com|b@example.org",
 	} {
 		t.Setenv(EnvSMTPTo, to)
 		sinks, err := sinksFromEnv()
@@ -180,16 +180,16 @@ var sample = Alert{
 	Priority: Urgent, Title: "Provider authentication failed", Description: "claude-cli returned 401",
 	Details: "run `claude login`\non the host\n", EventID: "claude-cli",
 	Time: time.Date(2026, 9, 24, 10, 0, 0, 0, time.FixedZone("EDT", -4*3600)),
-	App:  "ClawEh", Instance: "empire", Repeats: 3,
+	App:  "MyApp", Instance: "host1", Repeats: 3,
 }
 
 func TestSubject(t *testing.T) {
-	if got := subject(sample); got != "Provider authentication failed (ClawEh@empire)" {
+	if got := subject(sample); got != "Provider authentication failed (MyApp@host1)" {
 		t.Errorf("subject = %q", got)
 	}
 	cases := map[string]Alert{
-		"x (ClawEh)":      {Title: "x", App: "ClawEh"},
-		"x (@empire)":     {Title: "x", Instance: "empire"},
+		"x (MyApp)":       {Title: "x", App: "MyApp"},
+		"x (@host1)":      {Title: "x", Instance: "host1"},
 		"x":               {Title: "x"},
 		"line1 line2 (a)": {Priority: Urgent, App: "a", Title: "line1\r\nline2 "},
 	}
@@ -215,7 +215,7 @@ func TestBody(t *testing.T) {
 }
 
 func TestSMSText(t *testing.T) {
-	want := "Provider authentication failed: claude-cli returned 401\nUrgent alert from ClawEh@empire (3 repeat(s) suppressed)"
+	want := "Provider authentication failed: claude-cli returned 401\nUrgent alert from MyApp@host1 (3 repeat(s) suppressed)"
 	if got := smsText(sample); got != want {
 		t.Errorf("smsText = %q", got)
 	}
@@ -319,14 +319,14 @@ func TestTextNeverSaysHighOrLow(t *testing.T) {
 // it on its level line.
 func TestSourceStatedOnce(t *testing.T) {
 	for _, p := range []int{Normal, Urgent, Emergency} {
-		a := Alert{Priority: p, Title: "Disk full", Description: "backup stopped", App: "ClawEh", Instance: "empire", Time: sample.Time}
-		if n := strings.Count(subject(a)+"\n"+body(a), "ClawEh@empire"); n != 1 {
+		a := Alert{Priority: p, Title: "Disk full", Description: "backup stopped", App: "MyApp", Instance: "host1", Time: sample.Time}
+		if n := strings.Count(subject(a)+"\n"+body(a), "MyApp@host1"); n != 1 {
 			t.Errorf("level %d: source appears %d times in subject and body:\n%s\n%s", p, n, subject(a), body(a))
 		}
-		if n := strings.Count(pushoverForm(t, a), "ClawEh@empire"); n != 1 {
+		if n := strings.Count(pushoverForm(t, a), "MyApp@host1"); n != 1 {
 			t.Errorf("level %d: source appears %d times in the Pushover title and message", p, n)
 		}
-		if n := strings.Count(smsText(a), "ClawEh@empire"); n != 1 {
+		if n := strings.Count(smsText(a), "MyApp@host1"); n != 1 {
 			t.Errorf("level %d: source appears %d times in the SMS: %q", p, n, smsText(a))
 		}
 		if !strings.Contains(body(a), "\n"+priorityName(p)+" alert\n") {
